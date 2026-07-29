@@ -162,6 +162,10 @@
   .cmp tr:last-child td{border-bottom:none;}
   .cmp tr.total-row td{font-weight:700;border-top:1.5px solid rgba(190,190,190,0.4);}
   .cmp .best{color:var(--green);font-weight:700;}
+  .cmp-input{width:100%;min-width:90px;border:none;background:transparent;outline:none;text-align:right;
+    font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--ink);padding:4px 2px;border-radius:6px;}
+  .cmp-input:focus{background:rgba(61,90,241,0.08);}
+  .cmp-input-name{text-align:right;font-family:inherit;font-weight:700;font-size:13px;color:var(--amber-deep);min-width:130px;}
   .cell-stack{display:flex;flex-direction:column;gap:5px;align-items:stretch;
     background:rgba(120,120,120,0.045);border-radius:10px;padding:9px 11px;}
   .stack-line{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12px;}
@@ -689,6 +693,13 @@
         <div class="info-line" style="color:var(--dim);"><span>ℹ️</span><span>Secara default molding tidak masuk COGS per botol (dianggap capex di initial investment). Aktifkan <strong>Amortisasi molding</strong> di halaman Initial Investment untuk melihat biaya per unit yang sudah menyerap molding (dibagi rata ke qty batch).</span></div>
       </div>
     </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <div class="block-title">Perbandingan Skenario Custom</div>
+      <div class="block-sub">Bandingkan beberapa skenario harga &amp; biaya sekaligus — semua nilai di tabel ini independen (tidak mengikuti asumsi/supplier di tab lain), jadi bebas diubah untuk simulasi "kalau harganya segini", "kalau botolnya begini", dst. Tambah atau hapus kolom sesuka hati.</div>
+      <div style="overflow-x:auto;margin-top:12px;"><table class="cmp" id="scenarioCmp"></table></div>
+      <button type="button" class="add-sup" id="addScenario" style="margin-top:14px;">+ Tambah skenario</button>
+    </div>
   </div>
 
   <!-- ============ 6. SENSITIVITY ANALYSIS ============ -->
@@ -816,6 +827,7 @@ function defaultState(){
     projection:{batchSmall:2125, batchLarge:2125, priceSmall:200000, priceLarge:350000},
     marketing:{offline:300000000, online:200000000, others:50000000},
     options:{amortize:false},
+    ueScenarios:[],
     sim:{kurs:17000, freightPerCBM:7000000, fragAvgUsdPerLiter:defFragAvg, wastePct:30, shrinkagePct:15, priceSmall:200000, priceLarge:350000, targetRevenue:100000000}
   };
 }
@@ -908,6 +920,7 @@ function normalizeBase(){
   if(!S.bottles.large.dims) S.bottles.large.dims=d.bottles.large.dims;
   if(!S.projection) S.projection=d.projection;
   if(!S.sim) S.sim=d.sim;
+  if(!S.ueScenarios) S.ueScenarios=[];
   if(S.sim.kurs===undefined) S.sim.kurs = S.base.kurs;
   if(S.sim.freightPerCBM===undefined) S.sim.freightPerCBM = S.base.freightPerCBM;
   if(S.sim.fragAvgUsdPerLiter===undefined) S.sim.fragAvgUsdPerLiter = fragAvgUsdPerLiter();
@@ -1377,6 +1390,67 @@ function renderUE(){
   set("#ueBreakeven", wGP>0 ? be.toLocaleString("id-ID")+" pcs" : "—");
 }
 
+/* ---------------- RENDER: custom scenario comparison ---------------- */
+const SCENARIO_FIELDS=[
+  ["frag","Fragrance Oil"],["oem","OEM"],["botol","Botol (unit + perizinan)"],
+  ["aks","Aksesoris + Cap"],["box","Box Packaging"],["freight","Freight Forwarder"],
+  ["fulfill","Fulfillment"],["royalty","Royalti"]
+];
+function scenarioCogs(sc){
+  return SCENARIO_FIELDS.reduce((a,[key])=>a+(sc[key]||0),0);
+}
+function scenarioFromCurrent(sizeKey,label){
+  const u=unitEconomics(sizeKey);
+  return {id:"sc"+(idc++), name:label, price:Math.round(u.price), frag:Math.round(u.frag), oem:Math.round(u.oem),
+    botol:Math.round(u.botol), aks:Math.round(u.aks), box:Math.round(u.box), freight:Math.round(u.freight),
+    fulfill:Math.round(u.fulfill), royalty:Math.round(u.royalty)};
+}
+function seedScenariosIfEmpty(){
+  if(!S.ueScenarios || S.ueScenarios.length===0){
+    S.ueScenarios=[scenarioFromCurrent("small","Kecil — Saat Ini"), scenarioFromCurrent("large","Besar — Saat Ini")];
+  }
+}
+function updateScenarioTotals(id){
+  const sc=(S.ueScenarios||[]).find(x=>x.id===id); if(!sc) return;
+  const cogs=scenarioCogs(sc), gp=sc.price-cogs, gpm=sc.price>0?gp/sc.price*100:0;
+  const cogsEl=document.getElementById(`sc-cogs-${id}`); if(cogsEl) cogsEl.textContent=rp(cogs);
+  const gpEl=document.getElementById(`sc-gp-${id}`); if(gpEl){ gpEl.textContent=rp(gp); gpEl.style.color=gp<0?"var(--red)":"var(--ink)"; }
+  const gpmEl=document.getElementById(`sc-gpm-${id}`); if(gpmEl){ gpmEl.textContent=pct(gpm); gpmEl.style.color=gpm<0?"var(--red)":"var(--green)"; }
+}
+function renderScenarioCmp(){
+  const box=$("#scenarioCmp"); if(!box) return;
+  const list=S.ueScenarios||[];
+  if(list.length===0){ box.innerHTML=`<tbody><tr><td style="padding:14px;color:var(--faint);">Belum ada skenario — klik "+ Tambah skenario" di bawah.</td></tr></tbody>`; return; }
+  let html="<colgroup><col>";
+  list.forEach(()=>html+="<col>");
+  html+="</colgroup><thead><tr><th>Skenario</th>";
+  list.forEach(sc=>{
+    html+=`<th><div style="display:flex;align-items:center;gap:4px;justify-content:flex-end;">
+      <input type="text" class="cmp-input cmp-input-name" data-scenario="${sc.id}|name" value="${sc.name}">
+      <button type="button" class="rm-btn" data-scenario-rm="${sc.id}" title="Hapus skenario">&times;</button>
+    </div></th>`;
+  });
+  html+="</tr></thead><tbody>";
+  html+=`<tr><td>Harga Jual</td>`;
+  list.forEach(sc=>html+=`<td><input type="text" inputmode="decimal" class="cmp-input" data-scenario="${sc.id}|price" value="${fmtNum(sc.price,0)}"></td>`);
+  html+="</tr>";
+  SCENARIO_FIELDS.forEach(([key,lbl])=>{
+    html+=`<tr><td>${lbl}</td>`;
+    list.forEach(sc=>html+=`<td><input type="text" inputmode="decimal" class="cmp-input" data-scenario="${sc.id}|${key}" value="${fmtNum(sc[key]||0,0)}"></td>`);
+    html+="</tr>";
+  });
+  html+=`<tr class="total-row"><td>Total COGS</td>`;
+  list.forEach(sc=>html+=`<td id="sc-cogs-${sc.id}">${rp(scenarioCogs(sc))}</td>`);
+  html+="</tr>";
+  html+=`<tr class="total-row"><td>Gross Profit / botol</td>`;
+  list.forEach(sc=>{ const gp=sc.price-scenarioCogs(sc); html+=`<td id="sc-gp-${sc.id}" style="color:${gp<0?'var(--red)':'var(--ink)'};">${rp(gp)}</td>`; });
+  html+="</tr>";
+  html+=`<tr class="total-row"><td>Gross Margin</td>`;
+  list.forEach(sc=>{ const cogs=scenarioCogs(sc), gpm=sc.price>0?(sc.price-cogs)/sc.price*100:0; html+=`<td id="sc-gpm-${sc.id}" style="color:${gpm<0?'var(--red)':'var(--green)'};font-weight:700;">${pct(gpm)}</td>`; });
+  html+="</tr></tbody>";
+  box.innerHTML=html;
+}
+
 /* ---------------- RENDER: sensitivity analysis ---------------- */
 function paintSimInputs(){
   $$("input[data-sim]").forEach(inp=>{
@@ -1496,6 +1570,8 @@ function fullRender(){
   renderEditors();
   renderSelects();
   recompute();
+  seedScenariosIfEmpty();
+  renderScenarioCmp();
 }
 
 /* ---------------- SUPABASE CLOUD SYNC (opsional) ---------------- */
@@ -1628,6 +1704,13 @@ document.addEventListener("input",e=>{
     S.sim[t.dataset.sim] = isNumeric ? parseNum(t.value) : t.value;
     paintSimInputs(); renderSimCompare(); renderTargetPenjualan(); save();
   }
+  if(t.dataset.scenario!==undefined){
+    const [id,field]=t.dataset.scenario.split("|");
+    const sc=(S.ueScenarios||[]).find(x=>x.id===id); if(!sc) return;
+    sc[field] = isNumeric ? parseNum(t.value) : t.value;
+    if(field!=="name") updateScenarioTotals(id);
+    save();
+  }
 });
 document.addEventListener("focusout",e=>{
   const t=e.target;
@@ -1645,6 +1728,10 @@ document.addEventListener("focusout",e=>{
     t.value = fmtNum(getPath(sup,field), dec);
   } else if(t.dataset.sim!==undefined){
     t.value = fmtNum(S.sim[t.dataset.sim], dec);
+  } else if(t.dataset.scenario!==undefined){
+    const [id,field]=t.dataset.scenario.split("|");
+    const sc=(S.ueScenarios||[]).find(x=>x.id===id); if(!sc) return;
+    t.value = fmtNum(sc[field]||0, dec);
   }
 });
 function updateSupTotal(kind,id){
@@ -1705,6 +1792,17 @@ document.addEventListener("click",e=>{
     const idx=Number(fragRemove.dataset.fragRemove);
     S.base.fragrances.splice(idx,1);
     renderFragrance(); recompute(); save(); return;
+  }
+
+  if(e.target.closest("#addScenario")){
+    S.ueScenarios.push({id:"sc"+(idc++), name:"Skenario Baru", price:200000, frag:0, oem:0, botol:0, aks:0, box:0, freight:0, fulfill:0, royalty:0});
+    renderScenarioCmp(); save(); return;
+  }
+  const scRm=e.target.closest("[data-scenario-rm]");
+  if(scRm){
+    const idx=S.ueScenarios.findIndex(x=>x.id===scRm.dataset.scenarioRm);
+    if(idx>-1) S.ueScenarios.splice(idx,1);
+    renderScenarioCmp(); save(); return;
   }
 
   if(e.target.closest("#addSmall")){
