@@ -179,9 +179,10 @@
   .stack-line .stack-lbl{color:var(--faint);font-weight:500;flex:none;}
   .stack-line .stack-val{font-family:"JetBrains Mono",monospace;color:var(--gray);text-align:right;}
   .stack-line .stack-usd{color:var(--faint);font-size:10.5px;margin-left:5px;}
-  .stack-total{display:flex;justify-content:space-between;font-weight:700;color:var(--ink);font-family:"JetBrains Mono",monospace;font-size:13.5px;
+  .stack-total{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;column-gap:10px;row-gap:2px;font-weight:700;color:var(--ink);font-family:"JetBrains Mono",monospace;font-size:13.5px;
     border-top:1px solid rgba(190,190,190,0.4);margin-top:2px;padding-top:6px;}
-  .stack-total .stack-total-lbl{font-family:inherit;font-weight:600;color:var(--gray);font-size:11px;}
+  .stack-total .stack-total-lbl{font-family:inherit;font-weight:600;color:var(--gray);font-size:11px;flex:1 1 auto;min-width:0;}
+  .stack-total .stack-total-val{white-space:nowrap;margin-left:auto;}
   .stack-total.stack-grand{border-top:none;margin-top:0;padding-top:0;color:var(--amber-dark);}
   .stack-total.stack-grand .stack-total-lbl{color:var(--amber-deep);}
   .cmp col.hi{background:rgba(61,90,241,0.07);}
@@ -1154,7 +1155,7 @@ function moldingStackCell(sup){
     return `<div class="stack-line"><span class="stack-lbl">${lbl}</span><span class="stack-val">${rp(idr)}${usd}</span></div>`;
   }).join("");
   const total=toIDR(sup.molding.botol,cur)+toIDR(sup.molding.cap,cur)+toIDR(sup.molding.silicon,cur);
-  return `<div class="cell-stack">${lines}<div class="stack-total"><span class="stack-total-lbl">Total</span><span>${rp(total)}</span></div></div>`;
+  return `<div class="cell-stack">${lines}<div class="stack-total"><span class="stack-total-lbl">Total</span><span class="stack-total-val">${rp(total)}</span></div></div>`;
 }
 function variableStackCell(sup,qty){
   const cur=sup.currency;
@@ -1167,15 +1168,15 @@ function variableStackCell(sup,qty){
   const totalPerPcs=toIDR(sup.unit.botol,cur)+toIDR(sup.unit.cap,cur)+toIDR(sup.unit.aksesoris,cur);
   const totalBuy=totalPerPcs*(qty||0);
   return `<div class="cell-stack">${lines}
-    <div class="stack-total"><span class="stack-total-lbl">Total /pcs</span><span>${rp(totalPerPcs)}</span></div>
-    <div class="stack-total stack-grand"><span class="stack-total-lbl">Total beli (${(qty||0).toLocaleString("id-ID")} pcs)</span><span>${rp(totalBuy)}</span></div>
+    <div class="stack-total"><span class="stack-total-lbl">Total /pcs</span><span class="stack-total-val">${rp(totalPerPcs)}</span></div>
+    <div class="stack-total stack-grand"><span class="stack-total-lbl">Total beli (${(qty||0).toLocaleString("id-ID")} pcs)</span><span class="stack-total-val">${rp(totalBuy)}</span></div>
   </div>`;
 }
 function freightStackCell(sup,invFreight){
   if(!sup.freight.enabled) return `<span style="color:var(--faint);">nonaktif</span>`;
   return `<div class="cell-stack">
     <div class="stack-line"><span class="stack-lbl">${fmtNum(sup.freight.pcsPerCBM,0)} pcs/CBM</span><span class="stack-val">@ ${rp(sup.freight.ratePerCBM)}</span></div>
-    <div class="stack-total"><span class="stack-total-lbl">Total</span><span>${rp(invFreight)}</span></div>
+    <div class="stack-total"><span class="stack-total-lbl">Total</span><span class="stack-total-val">${rp(invFreight)}</span></div>
   </div>`;
 }
 function renderCompare(kind){
