@@ -121,6 +121,20 @@
     box-shadow:0 1px 5px rgba(0,0,0,0.25);cursor:pointer;}
   input[type=range]:focus-visible::-webkit-slider-thumb{outline:2px solid var(--amber);outline-offset:2px;}
 
+  /* split slider (kecil vs besar output ratio) */
+  .split-block{margin-top:14px;}
+  .split-labels-row{display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:8px;}
+  .split-bar-wrap{position:relative;height:40px;}
+  .split-bar{position:absolute;inset:0;display:flex;border-radius:10px;overflow:hidden;border:1px solid rgba(0,0,0,0.08);}
+  .split-seg{display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;}
+  .split-seg-small{background:linear-gradient(180deg,#e2564c,var(--red));}
+  .split-seg-large{background:linear-gradient(180deg,#22a06f,var(--green));}
+  input[type=range].split-range{position:absolute;inset:0;width:100%;height:100%;margin:0;background:transparent;cursor:pointer;z-index:2;}
+  input[type=range].split-range::-webkit-slider-thumb{width:14px;height:48px;margin-top:0;border-radius:6px;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,0.35),0 0 0 1px rgba(0,0,0,0.08);cursor:grab;}
+  input[type=range].split-range::-moz-range-thumb{width:14px;height:48px;border-radius:6px;background:#fff;border:none;box-shadow:0 1px 6px rgba(0,0,0,0.35);cursor:grab;}
+  input[type=range].split-range::-webkit-slider-runnable-track{background:transparent;height:100%;}
+  input[type=range].split-range::-moz-range-track{background:transparent;height:100%;border:none;}
+
   .segmented{display:inline-flex;background:rgba(255,255,255,0.4);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.5);border-radius:12px;padding:3px;gap:2px;}
   .segmented button{border:none;background:transparent;padding:8px 16px;border-radius:9px;font-size:13px;font-weight:600;
     color:var(--gray);cursor:pointer;font-family:inherit;transition:.15s;}
@@ -415,6 +429,18 @@
         <span class="val" id="mixYield">— pcs botol kecil · — pcs botol besar</span>
       </div>
       <div class="block-sub" style="margin-top:8px;">Qty batch aktual untuk Initial Investment tetap bisa diatur sendiri di tab 4 — angka ini hanya estimasi kapasitas maksimum dari volume campuran yang tersedia.</div>
+
+      <div class="split-block">
+        <div class="split-labels-row"><span>Botol Kecil</span><span>Botol Besar</span></div>
+        <div class="split-bar-wrap">
+          <div class="split-bar">
+            <div class="split-seg split-seg-small" id="splitSegSmall"><span id="splitSmallPctTxt">50%</span></div>
+            <div class="split-seg split-seg-large" id="splitSegLarge"><span id="splitLargePctTxt">50%</span></div>
+          </div>
+          <input type="range" class="split-range" id="mixSplitSlider" data-path="base.mix.splitLargePct" min="0" max="100" step="1">
+        </div>
+        <div class="block-sub" style="margin-top:8px;">Geser untuk mengatur rasio jumlah pcs botol kecil vs botol besar dari hasil produksi (volume campuran tetap sama, hanya proporsi pembagiannya yang berubah).</div>
+      </div>
     </div>
 
     <div class="card card-pad" style="margin-top:16px;">
@@ -766,7 +792,7 @@ function defaultState(){
       oemCost:10000, wastePct:30, ppnPct:11, perizinanPct:10, mirantiPct:2,
       boxPackaging:20000, boxAksesoris:5000, fulfillmentCost:5000,
       largeSizeML:100,
-      mix:{fragrancePct:25, shrinkagePct:15},
+      mix:{fragrancePct:25, shrinkagePct:15, splitLargePct:50},
       legalPerVarian:{bpom:1000000, halal:700000},
       fragrances: defFragrances
     },
@@ -871,6 +897,7 @@ function normalizeBase(){
   if(!S.base.legalPerVarian) S.base.legalPerVarian=d.base.legalPerVarian;
   if(S.base.mix.fragrancePct===undefined) S.base.mix.fragrancePct=d.base.mix.fragrancePct;
   if(S.base.mix.shrinkagePct===undefined) S.base.mix.shrinkagePct=d.base.mix.shrinkagePct;
+  if(S.base.mix.splitLargePct===undefined) S.base.mix.splitLargePct=d.base.mix.splitLargePct;
   if(S.base.largeSizeML===undefined) S.base.largeSizeML=d.base.largeSizeML;
   if(!S.base.fragrances || !S.base.fragrances.length) S.base.fragrances=d.base.fragrances;
   if(!S.bottles) S.bottles=d.bottles;
@@ -999,8 +1026,8 @@ function runScenario(sim){
   S.base.fragrances.forEach((f,i)=>overrides.push([`base.fragrances.${i}.usdPerLiter`, f.usdPerLiter*fragMult]));
   return withOverrides(overrides, ()=>{
     const mc=mixCalc();
-    S.projection.batchSmall=mc.pcsEach;
-    S.projection.batchLarge=mc.pcsEach;
+    S.projection.batchSmall=mc.pcsSmall;
+    S.projection.batchLarge=mc.pcsLarge;
     const s=unitEconomics("small");
     const l=unitEconomics("large");
     const ii=initialInvestment();
@@ -1196,9 +1223,14 @@ function mixCalc(){
   const totalMix = fragPct>0 ? fragL/(fragPct/100) : 0;
   const nonFragL = totalMix*(nonFragPct/100);
   const afterShrink = totalMix*(1-(m.shrinkagePct/100));
-  const perBottleSum = nominalBottleML("small")+nominalBottleML("large");
-  const pcsEach = perBottleSum>0 ? Math.floor((afterShrink*1000)/perBottleSum) : 0;
-  return {fragL,totalMix,nonFragL,nonFragPct,afterShrink,pcsEach};
+  const largePct = m.splitLargePct!==undefined ? m.splitLargePct : 50;
+  const smallPct = 100-largePct;
+  const smallML=nominalBottleML("small"), largeML=nominalBottleML("large");
+  const denom = smallPct*smallML + largePct*largeML;
+  const totalPcs = denom>0 ? (afterShrink*1000*100)/denom : 0;
+  const pcsSmall = Math.floor(totalPcs*smallPct/100);
+  const pcsLarge = Math.floor(totalPcs*largePct/100);
+  return {fragL,totalMix,nonFragL,nonFragPct,afterShrink,pcsSmall,pcsLarge,smallPct,largePct};
 }
 function renderMix(){
   const mc=mixCalc();
@@ -1207,7 +1239,14 @@ function renderMix(){
   $("#mixNonFragL").textContent=mc.nonFragL.toLocaleString("id-ID",{maximumFractionDigits:1})+" L";
   $("#mixTotalL").textContent=mc.totalMix.toLocaleString("id-ID",{maximumFractionDigits:1})+" L";
   $("#mixAfterShrinkL").textContent=mc.afterShrink.toLocaleString("id-ID",{maximumFractionDigits:1})+" L";
-  $("#mixYield").textContent=`${mc.pcsEach.toLocaleString("id-ID")} pcs botol kecil (15 ML) · ${mc.pcsEach.toLocaleString("id-ID")} pcs botol besar (${S.base.largeSizeML} ML)`;
+  $("#mixYield").textContent=`${mc.pcsSmall.toLocaleString("id-ID")} pcs botol kecil (15 ML) · ${mc.pcsLarge.toLocaleString("id-ID")} pcs botol besar (${S.base.largeSizeML} ML)`;
+  const smallPctR=Math.round(mc.smallPct), largePctR=100-smallPctR;
+  $("#splitSegSmall").style.width=smallPctR+"%";
+  $("#splitSegLarge").style.width=largePctR+"%";
+  $("#splitSmallPctTxt").textContent=smallPctR+"%";
+  $("#splitLargePctTxt").textContent=largePctR+"%";
+  const slider=$("#mixSplitSlider");
+  if(document.activeElement!==slider) slider.value=mc.largePct;
 }
 function renderBaseDerived(){
   $("#fragAvgL").textContent=rp(fragAvgPerLiterIDR());
@@ -1433,10 +1472,10 @@ function refreshAllSupTotals(){
 }
 function recompute(){
   const mc=mixCalc();
-  S.projection.batchSmall=mc.pcsEach;
-  S.projection.batchLarge=mc.pcsEach;
-  $("#batchSmallDisplay").textContent=mc.pcsEach.toLocaleString("id-ID");
-  $("#batchLargeDisplay").textContent=mc.pcsEach.toLocaleString("id-ID");
+  S.projection.batchSmall=mc.pcsSmall;
+  S.projection.batchLarge=mc.pcsLarge;
+  $("#batchSmallDisplay").textContent=mc.pcsSmall.toLocaleString("id-ID");
+  $("#batchLargeDisplay").textContent=mc.pcsLarge.toLocaleString("id-ID");
   renderBaseDerived();
   renderCompare("small"); renderCompare("large");
   refreshAllSupTotals();
