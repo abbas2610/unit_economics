@@ -696,7 +696,7 @@
 
     <div class="card card-pad" style="margin-top:16px;">
       <div class="block-title">Perbandingan Skenario Custom</div>
-      <div class="block-sub">Bandingkan beberapa skenario harga &amp; biaya sekaligus — semua nilai di tabel ini independen (tidak mengikuti asumsi/supplier di tab lain), jadi bebas diubah untuk simulasi "kalau harganya segini", "kalau botolnya begini", dst. Tambah atau hapus kolom sesuka hati.</div>
+      <div class="block-sub">Bandingkan beberapa skenario harga &amp; biaya sekaligus — pilih Ukuran Botol per kolom (biaya Botol &amp; Aksesoris otomatis ikut supplier yang sedang aktif untuk ukuran itu), sisanya (harga jual, fragrance, OEM, dll) bebas diubah sendiri untuk simulasi "kalau harganya segini", "kalau botolnya begini", dst. Tambah atau hapus kolom sesuka hati.</div>
       <div style="overflow-x:auto;margin-top:12px;"><table class="cmp" id="scenarioCmp"></table></div>
       <button type="button" class="add-sup" id="addScenario" style="margin-top:14px;">+ Tambah skenario</button>
     </div>
@@ -1392,18 +1392,18 @@ function renderUE(){
 
 /* ---------------- RENDER: custom scenario comparison ---------------- */
 const SCENARIO_FIELDS=[
-  ["frag","Fragrance Oil"],["oem","OEM"],["botol","Botol (unit + perizinan)"],
-  ["aks","Aksesoris + Cap"],["box","Box Packaging"],["freight","Freight Forwarder"],
-  ["fulfill","Fulfillment"],["royalty","Royalti"]
+  ["frag","Fragrance Oil"],["oem","OEM"],["box","Box Packaging"],
+  ["freight","Freight Forwarder"],["fulfill","Fulfillment"],["royalty","Royalti"]
 ];
+function scenarioSizeKey(sc){ return sc.sizeKey==="large" ? "large" : "small"; }
 function scenarioCogs(sc){
-  return SCENARIO_FIELDS.reduce((a,[key])=>a+(sc[key]||0),0);
+  const u=unitEconomics(scenarioSizeKey(sc));
+  return SCENARIO_FIELDS.reduce((a,[key])=>a+(sc[key]||0),0) + u.botol + u.aks;
 }
 function scenarioFromCurrent(sizeKey,label){
   const u=unitEconomics(sizeKey);
-  return {id:"sc"+(idc++), name:label, price:Math.round(u.price), frag:Math.round(u.frag), oem:Math.round(u.oem),
-    botol:Math.round(u.botol), aks:Math.round(u.aks), box:Math.round(u.box), freight:Math.round(u.freight),
-    fulfill:Math.round(u.fulfill), royalty:Math.round(u.royalty)};
+  return {id:"sc"+(idc++), name:label, sizeKey, price:Math.round(u.price), frag:Math.round(u.frag), oem:Math.round(u.oem),
+    box:Math.round(u.box), freight:Math.round(u.freight), fulfill:Math.round(u.fulfill), royalty:Math.round(u.royalty)};
 }
 function seedScenariosIfEmpty(){
   if(!S.ueScenarios || S.ueScenarios.length===0){
@@ -1412,10 +1412,16 @@ function seedScenariosIfEmpty(){
 }
 function updateScenarioTotals(id){
   const sc=(S.ueScenarios||[]).find(x=>x.id===id); if(!sc) return;
+  const u=unitEconomics(scenarioSizeKey(sc));
+  const botolEl=document.getElementById(`sc-botol-${id}`); if(botolEl) botolEl.textContent=rp(u.botol);
+  const aksEl=document.getElementById(`sc-aks-${id}`); if(aksEl) aksEl.textContent=rp(u.aks);
   const cogs=scenarioCogs(sc), gp=sc.price-cogs, gpm=sc.price>0?gp/sc.price*100:0;
   const cogsEl=document.getElementById(`sc-cogs-${id}`); if(cogsEl) cogsEl.textContent=rp(cogs);
   const gpEl=document.getElementById(`sc-gp-${id}`); if(gpEl){ gpEl.textContent=rp(gp); gpEl.style.color=gp<0?"var(--red)":"var(--ink)"; }
   const gpmEl=document.getElementById(`sc-gpm-${id}`); if(gpmEl){ gpmEl.textContent=pct(gpm); gpmEl.style.color=gpm<0?"var(--red)":"var(--green)"; }
+}
+function refreshScenarioLinkedCells(){
+  (S.ueScenarios||[]).forEach(sc=>updateScenarioTotals(sc.id));
 }
 function renderScenarioCmp(){
   const box=$("#scenarioCmp"); if(!box) return;
@@ -1431,8 +1437,23 @@ function renderScenarioCmp(){
     </div></th>`;
   });
   html+="</tr></thead><tbody>";
+  html+=`<tr><td>Ukuran Botol</td>`;
+  list.forEach(sc=>{
+    const sk=scenarioSizeKey(sc);
+    html+=`<td><select class="cmp-input" style="text-align:right;" data-scenario-size="${sc.id}">
+      <option value="small" ${sk==="small"?"selected":""}>Kecil</option>
+      <option value="large" ${sk==="large"?"selected":""}>Besar</option>
+    </select></td>`;
+  });
+  html+="</tr>";
   html+=`<tr><td>Harga Jual</td>`;
   list.forEach(sc=>html+=`<td><input type="text" inputmode="decimal" class="cmp-input" data-scenario="${sc.id}|price" value="${fmtNum(sc.price,0)}"></td>`);
+  html+="</tr>";
+  html+=`<tr><td>Botol (unit + perizinan) <span style="font-size:11px;color:var(--faint);font-weight:400;">ikut ukuran</span></td>`;
+  list.forEach(sc=>html+=`<td id="sc-botol-${sc.id}">${rp(unitEconomics(scenarioSizeKey(sc)).botol)}</td>`);
+  html+="</tr>";
+  html+=`<tr><td>Aksesoris + Cap <span style="font-size:11px;color:var(--faint);font-weight:400;">ikut ukuran</span></td>`;
+  list.forEach(sc=>html+=`<td id="sc-aks-${sc.id}">${rp(unitEconomics(scenarioSizeKey(sc)).aks)}</td>`);
   html+="</tr>";
   SCENARIO_FIELDS.forEach(([key,lbl])=>{
     html+=`<tr><td>${lbl}</td>`;
@@ -1560,6 +1581,7 @@ function recompute(){
   refreshAllSupTotals();
   renderII();
   renderUE();
+  refreshScenarioLinkedCells();
   renderSensitivity();
 }
 function fullRender(){
@@ -1795,7 +1817,7 @@ document.addEventListener("click",e=>{
   }
 
   if(e.target.closest("#addScenario")){
-    S.ueScenarios.push({id:"sc"+(idc++), name:"Skenario Baru", price:200000, frag:0, oem:0, botol:0, aks:0, box:0, freight:0, fulfill:0, royalty:0});
+    S.ueScenarios.push({id:"sc"+(idc++), name:"Skenario Baru", sizeKey:"small", price:200000, frag:0, oem:0, box:0, freight:0, fulfill:0, royalty:0});
     renderScenarioCmp(); save(); return;
   }
   const scRm=e.target.closest("[data-scenario-rm]");
@@ -1859,6 +1881,13 @@ document.addEventListener("click",e=>{
 // selects
 $("#selSmall").addEventListener("change",e=>{S.selection.smallId=e.target.value;renderEditors();recompute();save();});
 $("#selLarge").addEventListener("change",e=>{S.selection.largeId=e.target.value;renderEditors();recompute();save();});
+document.addEventListener("change",e=>{
+  const sel=e.target.closest("[data-scenario-size]");
+  if(!sel) return;
+  const sc=(S.ueScenarios||[]).find(x=>x.id===sel.dataset.scenarioSize); if(!sc) return;
+  sc.sizeKey=sel.value;
+  updateScenarioTotals(sc.id); save();
+});
 
 // tab switch
 function switchTab(name){
