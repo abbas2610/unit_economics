@@ -124,16 +124,10 @@
   /* split slider (kecil vs besar output ratio) */
   .split-block{margin-top:14px;}
   .split-labels-row{display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:8px;}
-  .split-bar-wrap{position:relative;height:40px;}
-  .split-bar{position:absolute;inset:0;display:flex;border-radius:10px;overflow:hidden;border:1px solid rgba(0,0,0,0.08);}
-  .split-seg{display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;}
+  .split-bar{display:flex;height:40px;border-radius:10px;overflow:hidden;border:1px solid rgba(0,0,0,0.08);}
+  .split-seg{display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;transition:width .05s linear;}
   .split-seg-small{background:linear-gradient(180deg,#e2564c,var(--red));}
   .split-seg-large{background:linear-gradient(180deg,#22a06f,var(--green));}
-  input[type=range].split-range{position:absolute;inset:0;width:100%;height:100%;margin:0;background:transparent;cursor:pointer;z-index:2;}
-  input[type=range].split-range::-webkit-slider-thumb{width:14px;height:48px;margin-top:0;border-radius:6px;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,0.35),0 0 0 1px rgba(0,0,0,0.08);cursor:grab;}
-  input[type=range].split-range::-moz-range-thumb{width:14px;height:48px;border-radius:6px;background:#fff;border:none;box-shadow:0 1px 6px rgba(0,0,0,0.35);cursor:grab;}
-  input[type=range].split-range::-webkit-slider-runnable-track{background:transparent;height:100%;}
-  input[type=range].split-range::-moz-range-track{background:transparent;height:100%;border:none;}
 
   .segmented{display:inline-flex;background:rgba(255,255,255,0.4);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.5);border-radius:12px;padding:3px;gap:2px;}
   .segmented button{border:none;background:transparent;padding:8px 16px;border-radius:9px;font-size:13px;font-weight:600;
@@ -433,12 +427,13 @@
 
       <div class="split-block">
         <div class="split-labels-row"><span>Botol Kecil</span><span>Botol Besar</span></div>
-        <div class="split-bar-wrap">
-          <div class="split-bar">
-            <div class="split-seg split-seg-small" id="splitSegSmall"><span id="splitSmallPctTxt">50%</span></div>
-            <div class="split-seg split-seg-large" id="splitSegLarge"><span id="splitLargePctTxt">50%</span></div>
-          </div>
-          <input type="range" class="split-range" id="mixSplitSlider" data-path="base.mix.splitLargePct" min="0" max="100" step="1">
+        <div class="split-bar">
+          <div class="split-seg split-seg-small" id="splitSegSmall"><span id="splitSmallPctTxt">50%</span></div>
+          <div class="split-seg split-seg-large" id="splitSegLarge"><span id="splitLargePctTxt">50%</span></div>
+        </div>
+        <div class="slider-row" style="margin-top:12px;">
+          <div class="control-label"><span>Rasio Botol Besar</span><span class="cur-val" id="mixSplitVal">50%</span></div>
+          <input type="range" id="mixSplitSlider" data-path="base.mix.splitLargePct" min="0" max="100" step="1">
         </div>
         <div class="block-sub" style="margin-top:8px;">Geser untuk mengatur rasio jumlah pcs botol kecil vs botol besar dari hasil produksi (volume campuran tetap sama, hanya proporsi pembagiannya yang berubah).</div>
       </div>
@@ -1246,6 +1241,7 @@ function renderMix(){
   $("#splitSegLarge").style.width=largePctR+"%";
   $("#splitSmallPctTxt").textContent=smallPctR+"%";
   $("#splitLargePctTxt").textContent=largePctR+"%";
+  $("#mixSplitVal").textContent=largePctR+"%";
   const slider=$("#mixSplitSlider");
   if(document.activeElement!==slider) slider.value=mc.largePct;
 }
