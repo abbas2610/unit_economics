@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Git: Add, Commit & Push",
+      "type": "shell",
+      "command": "git add -A; if ($LASTEXITCODE -eq 0) { git commit -m \"Update ${input:commitMessage}\" }; if ($LASTEXITCODE -eq 0) { git push origin main }",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "commitMessage",
+      "type": "promptString",
+      "description": "Pesan commit singkat",
+      "default": "perubahan"
+    }
+  ]
+}
