@@ -166,6 +166,12 @@
     font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--ink);padding:4px 2px;border-radius:6px;}
   .cmp-input:focus{background:rgba(61,90,241,0.08);}
   .cmp-input-name{text-align:right;font-family:inherit;font-weight:700;font-size:13px;color:var(--amber-deep);min-width:130px;}
+  .cmp tr.cmp-subhead td{background:rgba(120,120,120,0.06);color:var(--faint);font-size:10.5px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.05em;padding:8px 14px;border-bottom:1px solid rgba(190,190,190,0.25);font-family:inherit;}
+  .cmp tr.cmp-linked td{background:rgba(61,90,241,0.045);}
+  .cmp tr.cmp-linked td:first-child{color:var(--amber-deep);}
+  .cmp tr.cmp-editable td{background:rgba(24,138,92,0.035);}
+  .cmp tr.cmp-editable td:first-child{color:var(--green);}
   .cell-stack{display:flex;flex-direction:column;gap:5px;align-items:stretch;
     background:rgba(120,120,120,0.045);border-radius:10px;padding:9px 11px;}
   .stack-line{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12px;}
@@ -696,7 +702,7 @@
 
     <div class="card card-pad" style="margin-top:16px;">
       <div class="block-title">Perbandingan Skenario Custom</div>
-      <div class="block-sub">Bandingkan beberapa skenario harga &amp; biaya sekaligus — pilih Ukuran Botol per kolom (biaya Botol &amp; Aksesoris otomatis ikut supplier yang sedang aktif untuk ukuran itu), sisanya (harga jual, fragrance, OEM, dll) bebas diubah sendiri untuk simulasi "kalau harganya segini", "kalau botolnya begini", dst. Tambah atau hapus kolom sesuka hati.</div>
+      <div class="block-sub">Bandingkan beberapa skenario harga &amp; biaya sekaligus — pilih Ukuran Botol per kolom, baris <strong>🔒 Otomatis</strong> (Fragrance, Botol, Aksesoris) ikut asumsi &amp; supplier yang sedang aktif untuk ukuran itu, baris <strong>✎ Bisa Diubah</strong> bebas diedit sendiri per skenario untuk simulasi "kalau harganya segini", "kalau OEM-nya segitu", dst. Tambah atau hapus kolom sesuka hati.</div>
       <div style="overflow-x:auto;margin-top:12px;"><table class="cmp" id="scenarioCmp"></table></div>
       <button type="button" class="add-sup" id="addScenario" style="margin-top:14px;">+ Tambah skenario</button>
     </div>
@@ -1391,18 +1397,19 @@ function renderUE(){
 }
 
 /* ---------------- RENDER: custom scenario comparison ---------------- */
+const SCENARIO_LINKED_FIELDS=[["frag","Fragrance Oil"],["botol","Botol (unit + perizinan)"],["aks","Aksesoris + Cap"]];
 const SCENARIO_FIELDS=[
-  ["frag","Fragrance Oil"],["oem","OEM"],["box","Box Packaging"],
+  ["oem","OEM"],["box","Box Packaging"],
   ["freight","Freight Forwarder"],["fulfill","Fulfillment"],["royalty","Royalti"]
 ];
 function scenarioSizeKey(sc){ return sc.sizeKey==="large" ? "large" : "small"; }
 function scenarioCogs(sc){
   const u=unitEconomics(scenarioSizeKey(sc));
-  return SCENARIO_FIELDS.reduce((a,[key])=>a+(sc[key]||0),0) + u.botol + u.aks;
+  return SCENARIO_FIELDS.reduce((a,[key])=>a+(sc[key]||0),0) + u.frag + u.botol + u.aks;
 }
 function scenarioFromCurrent(sizeKey,label){
   const u=unitEconomics(sizeKey);
-  return {id:"sc"+(idc++), name:label, sizeKey, price:Math.round(u.price), frag:Math.round(u.frag), oem:Math.round(u.oem),
+  return {id:"sc"+(idc++), name:label, sizeKey, price:Math.round(u.price), oem:Math.round(u.oem),
     box:Math.round(u.box), freight:Math.round(u.freight), fulfill:Math.round(u.fulfill), royalty:Math.round(u.royalty)};
 }
 function seedScenariosIfEmpty(){
@@ -1413,6 +1420,7 @@ function seedScenariosIfEmpty(){
 function updateScenarioTotals(id){
   const sc=(S.ueScenarios||[]).find(x=>x.id===id); if(!sc) return;
   const u=unitEconomics(scenarioSizeKey(sc));
+  const fragEl=document.getElementById(`sc-frag-${id}`); if(fragEl) fragEl.textContent=rp(u.frag);
   const botolEl=document.getElementById(`sc-botol-${id}`); if(botolEl) botolEl.textContent=rp(u.botol);
   const aksEl=document.getElementById(`sc-aks-${id}`); if(aksEl) aksEl.textContent=rp(u.aks);
   const cogs=scenarioCogs(sc), gp=sc.price-cogs, gpm=sc.price>0?gp/sc.price*100:0;
@@ -1427,6 +1435,7 @@ function renderScenarioCmp(){
   const box=$("#scenarioCmp"); if(!box) return;
   const list=S.ueScenarios||[];
   if(list.length===0){ box.innerHTML=`<tbody><tr><td style="padding:14px;color:var(--faint);">Belum ada skenario — klik "+ Tambah skenario" di bawah.</td></tr></tbody>`; return; }
+  const colspan=list.length+1;
   let html="<colgroup><col>";
   list.forEach(()=>html+="<col>");
   html+="</colgroup><thead><tr><th>Skenario</th>";
@@ -1446,17 +1455,20 @@ function renderScenarioCmp(){
     </select></td>`;
   });
   html+="</tr>";
-  html+=`<tr><td>Harga Jual</td>`;
+  html+=`<tr class="cmp-editable"><td>Harga Jual</td>`;
   list.forEach(sc=>html+=`<td><input type="text" inputmode="decimal" class="cmp-input" data-scenario="${sc.id}|price" value="${fmtNum(sc.price,0)}"></td>`);
   html+="</tr>";
-  html+=`<tr><td>Botol (unit + perizinan) <span style="font-size:11px;color:var(--faint);font-weight:400;">ikut ukuran</span></td>`;
-  list.forEach(sc=>html+=`<td id="sc-botol-${sc.id}">${rp(unitEconomics(scenarioSizeKey(sc)).botol)}</td>`);
-  html+="</tr>";
-  html+=`<tr><td>Aksesoris + Cap <span style="font-size:11px;color:var(--faint);font-weight:400;">ikut ukuran</span></td>`;
-  list.forEach(sc=>html+=`<td id="sc-aks-${sc.id}">${rp(unitEconomics(scenarioSizeKey(sc)).aks)}</td>`);
-  html+="</tr>";
+
+  html+=`<tr class="cmp-subhead"><td colspan="${colspan}">🔒 Otomatis — ikut Ukuran Botol &amp; supplier aktif</td></tr>`;
+  SCENARIO_LINKED_FIELDS.forEach(([key,lbl])=>{
+    html+=`<tr class="cmp-linked"><td>${lbl}</td>`;
+    list.forEach(sc=>html+=`<td id="sc-${key}-${sc.id}">${rp(unitEconomics(scenarioSizeKey(sc))[key])}</td>`);
+    html+="</tr>";
+  });
+
+  html+=`<tr class="cmp-subhead"><td colspan="${colspan}">✎ Bisa Diubah — custom per skenario</td></tr>`;
   SCENARIO_FIELDS.forEach(([key,lbl])=>{
-    html+=`<tr><td>${lbl}</td>`;
+    html+=`<tr class="cmp-editable"><td>${lbl}</td>`;
     list.forEach(sc=>html+=`<td><input type="text" inputmode="decimal" class="cmp-input" data-scenario="${sc.id}|${key}" value="${fmtNum(sc[key]||0,0)}"></td>`);
     html+="</tr>";
   });
