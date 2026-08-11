@@ -930,6 +930,37 @@ function normalizeBase(){
   if(S.sim.kurs===undefined) S.sim.kurs = S.base.kurs;
   if(S.sim.freightPerCBM===undefined) S.sim.freightPerCBM = S.base.freightPerCBM;
   if(S.sim.fragAvgUsdPerLiter===undefined) S.sim.fragAvgUsdPerLiter = fragAvgUsdPerLiter();
+  recalcIdCounter();
+}
+function recalcIdCounter(){
+  let max=99;
+  const allIds=[
+    ...(S.ueScenarios||[]).map(x=>x.id),
+    ...(S.smallSuppliers||[]).map(x=>x.id),
+    ...(S.largeSuppliers||[]).map(x=>x.id)
+  ];
+  allIds.forEach(id=>{
+    const m=/(\d+)$/.exec(id||"");
+    if(m){ const n=Number(m[1]); if(n>max) max=n; }
+  });
+  idc=max+1;
+  // repair any duplicate ids left over from before this fix (they cause cross-column data corruption)
+  [S.ueScenarios, S.smallSuppliers, S.largeSuppliers].forEach(list=>{
+    if(!list) return;
+    const seen=new Set();
+    list.forEach(item=>{
+      if(seen.has(item.id)){
+        const oldId=item.id;
+        const prefix=/^\D+/.exec(oldId||"")||["sc"];
+        item.id=prefix[0]+(idc++);
+        if(S.selection){
+          if(S.selection.smallId===oldId) S.selection.smallId=item.id;
+          if(S.selection.largeId===oldId) S.selection.largeId=item.id;
+        }
+      }
+      seen.add(item.id);
+    });
+  });
 }
 
 function supplierUnitBottle(sup){
