@@ -704,7 +704,10 @@
       <div class="block-title">Perbandingan Skenario Custom</div>
       <div class="block-sub">Bandingkan beberapa skenario harga &amp; biaya sekaligus — pilih Ukuran Botol per kolom, baris <strong>🔒 Otomatis</strong> (Fragrance, Botol, Aksesoris) ikut asumsi &amp; supplier yang sedang aktif untuk ukuran itu, baris <strong>✎ Bisa Diubah</strong> bebas diedit sendiri per skenario untuk simulasi "kalau harganya segini", "kalau OEM-nya segitu", dst. Tambah atau hapus kolom sesuka hati.</div>
       <div style="overflow-x:auto;margin-top:12px;"><table class="cmp" id="scenarioCmp"></table></div>
-      <button type="button" class="add-sup" id="addScenario" style="margin-top:14px;">+ Tambah skenario</button>
+      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
+        <button type="button" class="add-sup" id="addScenarioSmall" style="flex:1;min-width:200px;">+ Tambah skenario Botol Kecil</button>
+        <button type="button" class="add-sup" id="addScenarioLarge" style="flex:1;min-width:200px;">+ Tambah skenario Botol Besar</button>
+      </div>
     </div>
   </div>
 
@@ -1859,8 +1862,12 @@ document.addEventListener("click",e=>{
     renderFragrance(); recompute(); save(); return;
   }
 
-  if(e.target.closest("#addScenario")){
-    S.ueScenarios.push({id:"sc"+(idc++), name:"Skenario Baru", sizeKey:"small", price:200000, frag:0, oem:0, box:0, freight:0, fulfill:0, royalty:0});
+  if(e.target.closest("#addScenarioSmall")){
+    S.ueScenarios.push(scenarioFromCurrent("small","Skenario Baru"));
+    renderScenarioCmp(); save(); return;
+  }
+  if(e.target.closest("#addScenarioLarge")){
+    S.ueScenarios.push(scenarioFromCurrent("large","Skenario Baru"));
     renderScenarioCmp(); save(); return;
   }
   const scRm=e.target.closest("[data-scenario-rm]");
