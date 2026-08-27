@@ -101,8 +101,42 @@ dokumen.
 - **`pkill` tidak menghentikan proses Node di Git Bash / Windows.** Server uji yang
   lama tetap memegang port, yang baru mati diam-diam dengan `EADDRINUSE` di
   `server.log`, dan probe berikutnya menguji **kode yang lama**. Hentikan lewat
-  PowerShell: `Get-CimInstance Win32_Process | Where-Object CommandLine -like
-  '*serve-build*' | Stop-Process -Force`.
+  PowerShell — dan **pipa langsung ke `Stop-Process` tidak bekerja**, karena ia
+  mengikat `Name` dari objek CIM lalu mencari proses bernama `node.exe` sebagai
+  nama harfiah dan gagal. Id-nya harus disebut:
+  `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like
+  '*serve-build*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`.
 
 - **Heredoc bash yang panjang tidak stabil di shell ini.** Berkas besar ditulis
   lewat tool tulis-berkas, bukan `cat > … <<'EOF'`.
+
+- **Cadangan JSON yang tidak lagi terbaca migrasi TIDAK menghasilkan error.**
+  `bacaDokumen()` sengaja tidak pernah melempar — payload yang tidak dikenali
+  jadi dokumen awal. Jadi cadangan yang basi terlihat persis seperti cadangan
+  yang baik sampai hari ia dipakai, dan hari itu yang ditulis ke baris tim
+  adalah angka contoh. Yang diperiksa `probe:pemulihan` karena itu bukan
+  "apakah ia parse" melainkan **apakah hasilnya masih berbeda dari
+  `dokumenAwal()`**.
+
+- **Dokumen yang sah belum tentu dokumen yang benar.** Export 22 Juli 2026
+  terbaca utuh oleh migrasi hari ini dan menghasilkan **margin −3431% (kecil)
+  dan −1919% (besar)** — karena ia dibuat sebelum model biayanya berubah bentuk
+  (`usdPerLiter` 2,4 bukan 60, `largeSizeML` 100, `base.mix` belum ada). Tidak
+  ada error di mana pun; angkanya cuma salah. Calon pemulihan karena itu disebut
+  namanya di `probe-pemulihan.mts` dan dituntut bermargin 0–100%, dengan export
+  22 Juli sebagai kontrol negatif untuk batas itu.
+
+- **`unitEconomics(dok, ukuran)` butuh DUA argumen, dan yang kurang tetap
+  menghasilkan angka.** Memanggilnya dengan satu argumen di probe menghasilkan
+  COGS dan margin yang terlihat wajar — bukan `NaN`, bukan lemparan — padahal
+  `ukuran` `undefined`. `scripts/` **dikecualikan dari `tsconfig.json`**, jadi
+  `npm run typecheck` hijau tanpa pernah melihat berkas probe. Probe yang
+  menghitung ukuran mana pun sekarang menyebut keduanya secara harfiah.
+
+- **Sifat perilaku dibuktikan dengan MENJALANKAN, bukan mem-`grep` kode.**
+  "Alat pemulihan tidak pernah `POST`" diuji dengan menyalakan PostgREST palsu,
+  menjalankan alatnya sungguhan, dan memeriksa metode yang benar-benar sampai —
+  plus kontrol negatif yang membuktikan pencatat permintaannya menyala. Membaca
+  kode sumber berarti mempercayai bahwa jalur yang dibaca sama dengan jalur yang
+  jalan, dan itu asumsi yang sudah pernah salah di sini (pemeriksa CI yang
+  mencari kata `supabase.co`).

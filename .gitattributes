@@ -1,0 +1,12 @@
+# Cadangan dokumen tim disimpan BYTE PER BYTE.
+#
+# sha256 tiap berkas dicatat di referensi/pemulihan/README.md dan dipakai
+# membuktikan bahwa yang ada di repo memang yang keluar dari tombol "Export
+# data", bukan sesuatu yang disunting di tengah jalan. Di Windows
+# `core.autocrlf=true` adalah bawaan, jadi tanpa baris di bawah ini setiap
+# checkout baru menulis ulang berkasnya dengan CRLF — isinya sama, hash-nya
+# berbeda, dan pembuktian yang gagal karena checkout bukan pembuktian.
+#
+# Dijaga `npm run probe:pemulihan`, yang membandingkan hash sungguhan dengan
+# yang tertulis di README.
+referensi/pemulihan/*.json -text
