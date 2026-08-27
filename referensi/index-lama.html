@@ -1069,6 +1069,7 @@ function blendedGPMOf(s,l){
 function runScenario(sim){
   const currentAvg=fragAvgUsdPerLiter();
   const fragMult = currentAvg>0 ? (sim.fragAvgUsdPerLiter||0)/currentAvg : 1;
+  const freightMult = S.base.freightPerCBM>0 ? (sim.freightPerCBM||0)/S.base.freightPerCBM : 1;
   const overrides=[
     ["base.kurs",sim.kurs],
     ["base.freightPerCBM",sim.freightPerCBM],
@@ -1078,6 +1079,11 @@ function runScenario(sim){
     ["projection.priceLarge",sim.priceLarge],
   ];
   S.base.fragrances.forEach((f,i)=>overrides.push([`base.fragrances.${i}.usdPerLiter`, f.usdPerLiter*fragMult]));
+  // scale each supplier's own freight rate by the same ratio, so the sensitivity slider
+  // actually moves Unit Economics / Initial Investment (suppliers store their own ratePerCBM
+  // independently of base.freightPerCBM once created — see Asumsi Dasar freight note).
+  S.smallSuppliers.forEach((s,i)=>overrides.push([`smallSuppliers.${i}.freight.ratePerCBM`, (s.freight?.ratePerCBM||0)*freightMult]));
+  S.largeSuppliers.forEach((s,i)=>overrides.push([`largeSuppliers.${i}.freight.ratePerCBM`, (s.freight?.ratePerCBM||0)*freightMult]));
   return withOverrides(overrides, ()=>{
     const mc=mixCalc();
     S.projection.batchSmall=mc.pcsSmall;
