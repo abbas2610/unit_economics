@@ -95,6 +95,55 @@ end $$;
 -- ---------------------------------------------------------------------------
 alter table public.unit_economics enable row level security;
 
+-- ---------------------------------------------------------------------------
+-- ⚠️⚠️ Buang kebijakan LAMA dari dashboard — dan ini bukan kerapian.
+--
+-- Project ini punya tiga kebijakan yang dibuat lewat dashboard saat builder HTML
+-- ditulis:
+--
+--   Allow anon read    SELECT  role {public}  using (true)
+--   Allow anon upsert  INSERT  role {public}  with check (true)
+--   Allow anon update  UPDATE  role {public}  using (true), with check NULL
+--
+-- **Kebijakan di Postgres bersifat OR.** Untuk satu perintah, cukup SATU
+-- kebijakan yang meloloskan dan aksesnya diberikan. Jadi selama ketiganya masih
+-- hidup, penyempitan ke satu baris di bawah TIDAK BERLAKU SAMA SEKALI — yang
+-- menang selalu yang paling longgar.
+--
+-- Menjalankan migrasi lalu melihat "RLS menyala" karena itu menyesatkan: RLS-nya
+-- memang menyala, dan tetap meloloskan segalanya. Itu sebabnya pemeriksa di akhir
+-- berkas ini tidak menghitung jumlah kebijakan saja, tapi menuntut tidak ada
+-- satu pun yang berpredikat `true`.
+--
+-- `Allow anon update` yang `with_check`-nya NULL adalah yang paling berbahaya:
+-- ia mengizinkan `id` baris diubah jadi apa pun, dan begitu itu terjadi dokumen
+-- tim keluar dari jangkauan SELURUH kebijakan dan tidak bisa dibaca siapa pun.
+-- ---------------------------------------------------------------------------
+
+-- Pengaman: kalau ada baris ber-id lain, menyempitkan kebijakan akan
+-- MENYEMBUNYIKANNYA. Lebih baik migrasi ini berhenti di sini daripada membuat
+-- data yang ada jadi tidak terjangkau tanpa satu pun tanda.
+do $$
+declare
+  n_lain int;
+  daftar text;
+begin
+  select count(*), string_agg(quote_literal(id), ', ')
+    into n_lain, daftar
+    from public.unit_economics
+   where id <> 'sos-unit-economics';
+
+  if n_lain > 0 then
+    raise exception
+      'Ada % baris dengan id selain sos-unit-economics (%). Menyempitkan kebijakan akan membuatnya tidak terjangkau. Putuskan dulu: hapus barisnya, atau longgarkan predikat kebijakan di berkas ini supaya mencakup id tersebut.',
+      n_lain, daftar;
+  end if;
+end $$;
+
+drop policy if exists "Allow anon read"   on public.unit_economics;
+drop policy if exists "Allow anon upsert" on public.unit_economics;
+drop policy if exists "Allow anon update" on public.unit_economics;
+
 -- Ketiga kebijakan memakai perbandingan literal `id = 'sos-unit-economics'`,
 -- bukan pemanggilan fungsi seperti `auth.uid()`. Jadi tidak ada yang perlu
 -- dibungkus `(select …)`: yang dibungkus adalah pemanggilan fungsi, supaya
@@ -132,8 +181,19 @@ create policy "anon boleh memperbarui dokumen bersama"
 -- menyala": satu statement yang gagal di tengah membatalkan sisanya, dan pesan
 -- yang muncul di layar cuma soal statement itu. Yang dipercaya baris di bawah.
 --
+-- ⚠️ `jumlah_policy` SENGAJA bukan pemeriksaan utama, dan itu pelajaran yang
+-- didapat dengan cara mahal di project ini: jalan pertama menghasilkan
+-- `rls_menyala = true` dengan enam kebijakan, tiga di antaranya berpredikat
+-- `true` dari dashboard. RLS menyala, dan meloloskan segalanya. Angka enam saja
+-- tidak memberi tahu itu.
+--
+-- Yang benar-benar dijaga `ada_policy_longgar`: kebijakan bersifat OR, jadi satu
+-- saja yang berpredikat `true` membatalkan seluruh penyempitan yang lain.
+--
 -- Yang HARUS terlihat:
 --   rls_menyala          = true
+--   ada_policy_longgar   = false  ← paling penting
+--   ada_policy_public    = false  ← role {public} lebih luas dari {anon,authenticated}
 --   jumlah_policy        = 3
 --   realtime_terdaftar   = true
 --   update_punya_check   = true   ← tanpa ini, id barisnya bisa diubah jadi
@@ -143,15 +203,26 @@ select
   (select relrowsecurity
      from pg_class
     where oid = 'public.unit_economics'::regclass)                    as rls_menyala,
+
+  (select coalesce(bool_or(qual = 'true' or with_check = 'true'), false)
+     from pg_policies
+    where schemaname = 'public' and tablename = 'unit_economics')     as ada_policy_longgar,
+
+  (select coalesce(bool_or(roles::text like '%public%'), false)
+     from pg_policies
+    where schemaname = 'public' and tablename = 'unit_economics')     as ada_policy_public,
+
   (select count(*)
      from pg_policies
     where schemaname = 'public' and tablename = 'unit_economics')     as jumlah_policy,
+
   (select exists (select 1
        from pg_publication_tables
       where pubname = 'supabase_realtime'
         and schemaname = 'public'
         and tablename = 'unit_economics'))                            as realtime_terdaftar,
-  (select bool_and(with_check is not null)
+
+  (select coalesce(bool_and(with_check is not null), false)
      from pg_policies
     where schemaname = 'public'
       and tablename = 'unit_economics'

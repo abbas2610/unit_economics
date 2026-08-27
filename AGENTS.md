@@ -47,6 +47,13 @@ dokumen.
   `net::ERR_ABORTED` harus dikecualikan, atau probe layar merah pada perilaku yang
   benar.
 
+- **Kebijakan RLS bersifat OR, dan `drop policy if exists` hanya kena nama yang
+  sama.** Migrasi ini sempat menambah tiga kebijakan sempit ke tabel yang sudah
+  punya tiga kebijakan dashboard berpredikat `true` untuk role `{public}`.
+  Hasilnya enam kebijakan, RLS menyala, dan akses tetap terbuka sepenuhnya —
+  karena cukup satu kebijakan yang meloloskan. Menghitung jumlah kebijakan tidak
+  menangkap ini; yang menangkap `bool_or(qual = true or with_check = true)`.
+
 - **Di SQL Editor Supabase, satu statement yang gagal membatalkan SISA skripnya.**
   Migrasi pertama repo ini berhenti di `42710 … already member of publication
   "supabase_realtime"`, dan blok RLS di bawahnya tidak pernah jalan — sementara

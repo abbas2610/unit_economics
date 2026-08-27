@@ -49,27 +49,49 @@ select relname, relrowsecurity from pg_class where relname = 'unit_economics';
 select policyname, cmd, qual, with_check from pg_policies where tablename = 'unit_economics';
 ```
 
-Kalau `relrowsecurity` `false`, jalankan migrasinya **utuh** — ia ditulis
-idempoten, jadi aman dijalankan berkali-kali terhadap database yang sudah berisi
-data. Baca peringatan keamanannya lebih dulu: menyalakan RLS tanpa policy membuat
-dokumen tim tidak bisa dibaca siapa pun, termasuk tim, jadi jangan jalankan
-setengah berkas.
+Jalankan migrasinya **utuh** — ia idempoten, jadi aman dijalankan berkali-kali
+terhadap database yang sudah berisi data. Baca peringatan keamanannya lebih dulu,
+dan jangan jalankan setengah berkas.
 
-Migrasi itu diakhiri query pemeriksa yang mencetak keadaan akhirnya. Yang harus
-terlihat: `rls_menyala = true`, `jumlah_policy = 3`, `realtime_terdaftar = true`,
-`update_punya_check = true`.
+Migrasi itu diakhiri query pemeriksa. Yang harus terlihat:
 
-> ⚠️ **Sudah pernah menggigit sekali.** Menjalankan versi pertama migrasi ini
-> berhenti di `ERROR: 42710: relation "unit_economics" is already member of
-> publication "supabase_realtime"` — dan di SQL Editor Supabase satu statement
-> yang gagal **membatalkan seluruh sisa skrip**. Akibatnya bukan error yang
-> terlihat: blok RLS di bawahnya tidak pernah jalan, sementara pesan di layar
-> cuma soal publikasi. Baris publikasinya sekarang dibungkus pemeriksaan.
+| Kolom | Harus | |
+| --- | --- | --- |
+| `rls_menyala` | `true` | |
+| `ada_policy_longgar` | `false` | **paling penting** |
+| `ada_policy_public` | `false` | role `{public}` lebih luas dari `{anon,authenticated}` |
+| `jumlah_policy` | `3` | |
+| `realtime_terdaftar` | `true` | |
+| `update_punya_check` | `true` | |
+
+### Dua kali menggigit, dan keduanya diam
+
+**Pertama — satu statement gagal membatalkan sisa skrip.** Versi awal migrasi
+berhenti di `ERROR: 42710: relation "unit_economics" is already member of
+publication "supabase_realtime"`. Di SQL Editor Supabase, kegagalan itu
+membatalkan **seluruh sisa skrip**: blok RLS di bawahnya tidak pernah jalan,
+sementara pesan yang muncul di layar cuma soal publikasi. Baris publikasinya
+sekarang dibungkus pemeriksaan.
+
+**Kedua — kebijakan bersifat OR, dan pemeriksa yang menghitung tidak
+menangkapnya.** Jalan berikutnya menghasilkan `rls_menyala = true` dengan
+**enam** kebijakan: tiga milik migrasi ini, tiga peninggalan dashboard yang
+berpredikat `true` untuk role `{public}` (`Allow anon read` / `upsert` /
+`update`). Cukup satu kebijakan yang meloloskan untuk memberi akses, jadi
+penyempitan ke satu baris **tidak berlaku sama sekali** — RLS menyala, dan
+meloloskan segalanya.
+
+`Allow anon update` yang paling berbahaya: `with_check`-nya NULL, jadi `id` baris
+boleh diubah jadi apa pun — dan begitu itu terjadi dokumen tim keluar dari
+jangkauan seluruh kebijakan dan tidak bisa dibaca siapa pun lagi.
+
+Migrasi sekarang menghapus ketiganya by name, dan pemeriksanya menuntut
+`ada_policy_longgar = false` alih-alih sekadar menghitung sampai tiga.
 
 ### Realtime: sudah menyala ✅
 
-Error 42710 di atas membuktikannya — `unit_economics` sudah anggota publikasi
-`supabase_realtime`. Tidak ada yang perlu dikerjakan.
+Error 42710 di atas sekaligus membuktikannya — `unit_economics` sudah anggota
+publikasi `supabase_realtime`. Tidak ada yang perlu dikerjakan.
 
 > Kalau suatu saat ia dilepas, `langgananDokumen()` akan **terpasang dengan
 > sukses dan tidak pernah menerima apa pun.** Tidak ada error; cuma dua orang
