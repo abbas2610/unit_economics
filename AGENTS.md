@@ -27,6 +27,13 @@ dokumen.
   sebagai pembacaan. Kalau perlu menguji tulisan, pakai id buangan — persis yang
   sudah dilakukan `probe:rls` dengan `probe-rls-jangan-dipakai`.
 
+- **Probe layar TIDAK BOLEH bisa menyentuh data produksi.** Bundle yang dibangun
+  CI membawa kredensial, jadi tiap ketikan probe tersimpan ke dokumen bersama
+  yang sungguhan — merusak angka tim tiap kali CI jalan, dengan log yang hijau.
+  `probe-builder.mjs` memutus seluruh permintaan ke `supabase.co` lewat
+  `konteks.route()`, dan MEMBUKTIKAN pemutusannya berlaku dengan menuntut status
+  di topbar berbunyi "Mode lokal". Sisi awan diuji `probe:rls`, dengan id buangan.
+
 - **GitHub Actions meneruskan variable yang belum diset sebagai STRING KOSONG.**
   `process.env.X ?? "bawaan"` karena itu tidak berlaku — `??` hanya jatuh pada
   `null`/`undefined`. Di `env.ts` itu membuat id dokumen jadi `""`, dan tiap

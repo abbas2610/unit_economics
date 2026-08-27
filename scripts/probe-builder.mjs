@@ -52,6 +52,27 @@ const TAB = [
 
 const peramban = await chromium.launch();
 const konteks = await peramban.newContext({ viewport: { width: 1280, height: 900 } });
+
+/**
+ * ⛔ Supabase DIPUTUS untuk seluruh probe ini. Dua alasan, dan yang pertama tidak
+ * bisa ditawar.
+ *
+ * **1. Probe ini tidak boleh bisa menyentuh data tim.** Bundle yang dibangun CI
+ * membawa kredensial produksi. Tanpa pemutusan ini, tiap ketikan probe —
+ * dan bagian 5 di bawah memang mengetik ke kotak kurs — tersimpan ke dokumen
+ * bersama yang sungguhan. Menjalankan CI akan merusak angka rapat tim, tiap kali,
+ * tanpa satu pun tanda di log yang hijau.
+ *
+ * **2. Assertion-nya jadi bisa dipercaya.** Dengan awan hidup, memuat ulang
+ * halaman menarik dokumen dari server dan membuang apa yang baru saja diketik —
+ * jadi bagian 5 gagal karena alasan yang tidak ada hubungannya dengan yang
+ * diujinya.
+ *
+ * Yang menguji sisi awan `probe:rls`, dan ia memakai id buangan. Pemisahannya
+ * disengaja: probe layar menguji LAYAR.
+ */
+await konteks.route(/supabase\.co/, (rute) => rute.abort("failed"));
+
 const hal = await konteks.newPage();
 
 /**
@@ -70,6 +91,9 @@ const gagalMuat = [];
 hal.on("requestfailed", (r) => {
   const sebab = r.failure()?.errorText ?? "";
   if (sebab.includes("ERR_ABORTED")) return;
+  /* Permintaan ke Supabase memang sengaja diputus di atas — menghitungnya
+     sebagai kegagalan aset akan membuat probe merah atas tindakannya sendiri. */
+  if (r.url().includes("supabase.co")) return;
   gagalMuat.push(`${sebab} ${r.url()}`);
 });
 hal.on("response", (r) => {
@@ -89,6 +113,31 @@ for (const t of TAB) {
 
 cek("tidak ada aset yang gagal dimuat", gagalMuat.length === 0, gagalMuat.slice(0, 3).join(", "));
 cek("tidak ada galat JavaScript", galatKonsol.length === 0, galatKonsol.slice(0, 2).join(" | "));
+
+/* Sekaligus membuktikan pemutusan Supabase di atas benar-benar berlaku: kalau ia
+   tidak berlaku, statusnya akan berbunyi "Tersinkron" dan probe ini sedang
+   menulis ke dokumen tim tanpa ada yang tahu.
+
+   Yang diuji juga hal yang nyata: builder ini sering dibuka di ruang rapat dengan
+   wifi yang tidak bisa diandalkan, dan halaman yang menolak menghitung karena
+   Supabase tidak terjangkau tidak berguna bagi siapa pun. */
+{
+  const status = (await hal.locator("header [role=status]").first().textContent()) ?? "";
+  cek(
+    "awan terputus → aplikasi tetap jalan dan MENGATAKANNYA",
+    /lokal|Gagal sync/i.test(status),
+    JSON.stringify(status),
+  );
+  cek(
+    "…dan tidak mengaku tersinkron",
+    !/Tersinkron/i.test(status),
+    "status yang bohong lebih buruk daripada tidak ada status",
+  );
+  cek(
+    "angka tetap terhitung tanpa jaringan",
+    /Rp/.test((await hal.locator("main").first().textContent()) ?? ""),
+  );
+}
 
 kontrol(
   "[kontrol negatif] halaman ngawur memang tidak menampilkan judul mana pun",
