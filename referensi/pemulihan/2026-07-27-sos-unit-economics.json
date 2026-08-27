@@ -1,0 +1,190 @@
+{
+  "base": {
+    "kurs": 18000,
+    "freightPerCBM": 7000000,
+    "packingEfficiency": 70,
+    "oemCost": 10000,
+    "wastePct": 30,
+    "ppnPct": 11,
+    "perizinanPct": 10,
+    "mirantiPct": 2,
+    "boxPackaging": 25000,
+    "boxAksesoris": 5000,
+    "fulfillmentCost": 5000,
+    "largeSizeML": 50,
+    "mix": {
+      "fragrancePct": 25,
+      "shrinkagePct": 20
+    },
+    "fragrances": [
+      {
+        "name": "Prime Obsession",
+        "usdPerLiter": 60,
+        "qtyLiter": 25
+      },
+      {
+        "name": "Recomm by Strangers",
+        "usdPerLiter": 60,
+        "qtyLiter": 25
+      },
+      {
+        "name": "I Feel The Rush",
+        "usdPerLiter": 60,
+        "qtyLiter": 25
+      }
+    ]
+  },
+  "bottles": {
+    "small": {
+      "dims": {
+        "l": 10.25,
+        "w": 5.96,
+        "h": 3.5
+      }
+    },
+    "large": {
+      "dims": {
+        "l": 8,
+        "w": 4,
+        "h": 9.5
+      }
+    }
+  },
+  "smallSuppliers": [
+    {
+      "id": "s1",
+      "name": "Botol Kecil 1",
+      "currency": "USD",
+      "moq": 10000,
+      "molding": {
+        "botol": 1475,
+        "cap": 0,
+        "silicon": 1036
+      },
+      "unit": {
+        "botol": 0.48,
+        "cap": 0,
+        "aksesoris": 0.59
+      },
+      "freight": {
+        "enabled": true,
+        "pcsPerCBM": 3272,
+        "ratePerCBM": 7000000
+      }
+    },
+    {
+      "id": "s2",
+      "name": "Botol Kecil 2",
+      "currency": "USD",
+      "moq": 10000,
+      "molding": {
+        "botol": 1475,
+        "cap": 1160,
+        "silicon": 1475
+      },
+      "unit": {
+        "botol": 0.59,
+        "cap": 0,
+        "aksesoris": 0.46
+      },
+      "freight": {
+        "enabled": true,
+        "pcsPerCBM": 3272,
+        "ratePerCBM": 7000000
+      }
+    }
+  ],
+  "largeSuppliers": [
+    {
+      "id": "l1",
+      "name": "Supplier 1 Lokal: Sherly (Opsi A)",
+      "currency": "IDR",
+      "moq": 30000,
+      "molding": {
+        "botol": 0,
+        "cap": 0,
+        "silicon": 0
+      },
+      "unit": {
+        "botol": 28850,
+        "cap": 0,
+        "aksesoris": 0
+      },
+      "freight": {
+        "enabled": false,
+        "pcsPerCBM": 1778,
+        "ratePerCBM": 7000000
+      }
+    },
+    {
+      "id": "l100",
+      "name": "Supplier 1 Lokal: Sherly (Opsi B)",
+      "currency": "IDR",
+      "moq": 10000,
+      "molding": {
+        "botol": 0,
+        "cap": 0,
+        "silicon": 0
+      },
+      "unit": {
+        "botol": 69850,
+        "cap": 0,
+        "aksesoris": 0
+      },
+      "freight": {
+        "enabled": false,
+        "pcsPerCBM": 1778,
+        "ratePerCBM": 7000000
+      }
+    },
+    {
+      "id": "l102",
+      "name": "Supplier Cina: Sia",
+      "currency": "USD",
+      "moq": 10000,
+      "molding": {
+        "botol": 886,
+        "cap": 0,
+        "silicon": 0
+      },
+      "unit": {
+        "botol": 1.62,
+        "cap": 0,
+        "aksesoris": 0
+      },
+      "freight": {
+        "enabled": true,
+        "pcsPerCBM": 2303,
+        "ratePerCBM": 7000000
+      }
+    }
+  ],
+  "selection": {
+    "smallId": "s1",
+    "largeId": "l102"
+  },
+  "projection": {
+    "batchSmall": 3692,
+    "batchLarge": 3692,
+    "priceSmall": 200000,
+    "priceLarge": 350000
+  },
+  "marketing": {
+    "offline": 300000000,
+    "online": 200000000,
+    "others": 0
+  },
+  "options": {
+    "amortize": false
+  },
+  "sim": {
+    "kurs": 20000,
+    "freightPerCBM": 7000000,
+    "fragAvgUsdPerLiter": 445,
+    "wastePct": 30,
+    "shrinkagePct": 20,
+    "priceSmall": 375000,
+    "priceLarge": 350000,
+    "targetRevenue": 100000000
+  }
+}

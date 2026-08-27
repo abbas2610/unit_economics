@@ -1,0 +1,121 @@
+{
+  "base": {
+    "kurs": 17000,
+    "freightPerCBM": 7000000,
+    "packingEfficiency": 70,
+    "oemCost": 10000,
+    "wastePct": 30,
+    "ppnPct": 11,
+    "perizinanPct": 10,
+    "mirantiPct": 2,
+    "boxPackaging": 20000,
+    "boxAksesoris": 5000,
+    "fulfillmentCost": 5000,
+    "largeSizeML": 100,
+    "fragrances": [
+      {
+        "name": "Prime Obsession",
+        "usdPerLiter": 2.4,
+        "qtyLiter": 25
+      },
+      {
+        "name": "Recomm by Strangers",
+        "usdPerLiter": 2.4,
+        "qtyLiter": 25
+      },
+      {
+        "name": "I Feel The Rush",
+        "usdPerLiter": 2.6,
+        "qtyLiter": 25
+      }
+    ]
+  },
+  "bottles": {
+    "small": {
+      "fragranceML": 5,
+      "dims": {
+        "l": 10.25,
+        "w": 5.96,
+        "h": 3.5
+      }
+    },
+    "large": {
+      "fragranceML": 25,
+      "dims": {
+        "l": 12.5,
+        "w": 7,
+        "h": 4.5
+      }
+    }
+  },
+  "smallSuppliers": [
+    {
+      "id": "s1",
+      "name": "Gelas Bening (A)",
+      "currency": "USD",
+      "moq": 10000,
+      "molding": {
+        "botol": 1475,
+        "cap": 0,
+        "silicon": 1036
+      },
+      "unit": {
+        "botol": 0.48,
+        "cap": 0,
+        "aksesoris": 0.59
+      }
+    },
+    {
+      "id": "s2",
+      "name": "Model Batu (B)",
+      "currency": "USD",
+      "moq": 10000,
+      "molding": {
+        "botol": 1475,
+        "cap": 1160,
+        "silicon": 1475
+      },
+      "unit": {
+        "botol": 0.59,
+        "cap": 0,
+        "aksesoris": 0.46
+      }
+    }
+  ],
+  "largeSuppliers": [
+    {
+      "id": "l1",
+      "name": "Vendor Lokal A",
+      "currency": "IDR",
+      "moq": 10000,
+      "molding": {
+        "botol": 25000000,
+        "cap": 20000000,
+        "silicon": 0
+      },
+      "unit": {
+        "botol": 16000,
+        "cap": 0,
+        "aksesoris": 3000
+      }
+    }
+  ],
+  "selection": {
+    "smallId": "s1",
+    "largeId": "l1"
+  },
+  "projection": {
+    "batchSmall": 2125,
+    "batchLarge": 2125,
+    "priceSmall": 200000,
+    "priceLarge": 350000
+  },
+  "marketing": {
+    "offline": 300000000,
+    "online": 200000000,
+    "others": 50000000
+  },
+  "options": {
+    "amortize": false
+  }
+}
