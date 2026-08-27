@@ -36,6 +36,7 @@ keputusannya.
 | **Sebelum menyentuh rumus biaya apa pun** | [docs/MODEL-BIAYA.md](docs/MODEL-BIAYA.md) |
 | **Selalu, sebelum menulis komponen** | [design-system/README.md](design-system/README.md) |
 | **Sebelum menambah impor lintas modul** | [docs/ARSITEKTUR-DOMAIN.md](docs/ARSITEKTUR-DOMAIN.md) — batasnya ditegakkan probe, bukan konvensi |
+| **PERTAMA — ada insiden data terbuka** | [docs/SESI-2026-08-27.md](docs/SESI-2026-08-27.md) |
 | **Selalu, untuk konteks & jebakan** | [docs/HANDOVER.md](docs/HANDOVER.md) |
 | **Sebelum menyentuh apa pun soal deploy** | [docs/INFRASTRUKTUR.md](docs/INFRASTRUKTUR.md) · [docs/CI-CD.md](docs/CI-CD.md) |
 | Cara menjalankan & membangun | [README.md](README.md) |

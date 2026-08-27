@@ -31,6 +31,11 @@ tautologi: yang kedua lulus apa pun yang dilakukan kodenya.
 | Deploy ke abbas.co.id/perfume | ⛔ workflow ditulis, **belum pernah dijalankan** |
 | Autentikasi | ⛔ tidak ada, dan itu keputusan — lihat di bawah |
 
+> ⛔ **Ada insiden data yang belum selesai.** Payload dokumen tim di Supabase
+> tertimpa pada 27 Agustus 2026 dan belum dipulihkan. Baca
+> [SESI-2026-08-27.md](SESI-2026-08-27.md) sebelum menyentuh apa pun yang
+> berhubungan dengan Supabase.
+
 ## Yang harus dikerjakan sebelum percaya ini live
 
 Berurutan, dan yang pertama paling penting.

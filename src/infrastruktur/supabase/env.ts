@@ -26,16 +26,34 @@
  * terjangkau tidak berguna bagi siapa pun.
  */
 
-const URL_SUPABASE = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+/**
+ * ⚠️ `||`, BUKAN `??`, dan itu perbedaan yang sudah memerahkan CI sekali.
+ *
+ * `??` hanya jatuh ke default pada `null`/`undefined`. GitHub Actions meneruskan
+ * repository variable yang belum diset sebagai **string kosong**, bukan
+ * undefined — jadi `?? "sos-unit-economics"` TIDAK berlaku, dan id dokumennya
+ * jadi `""`.
+ *
+ * Gejalanya tidak menunjuk ke sini sama sekali: aplikasi memuat dengan normal,
+ * lalu tiap penyimpanan ditolak RLS dengan 401 karena `'' <> 'sos-unit-economics'`.
+ * Yang terbaca di layar cuma status "Gagal sync".
+ */
+const tidakKosong = (v: string | undefined, bawaan: string) => (v && v.trim()) || bawaan;
+
+const URL_SUPABASE = tidakKosong(process.env.NEXT_PUBLIC_SUPABASE_URL, "");
+const ANON_KEY = tidakKosong(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, "");
 
 /**
  * Id dokumen bersama. Satu tim, satu baris.
  *
  * Bisa diganti lewat env untuk memisahkan ruang kerja — mis. simulasi yang tidak
  * boleh menimpa angka tim. Nilainya ikut dibekukan saat build.
+ *
+ * ⚠️ Terikat ke kebijakan RLS, yang menyebut id-nya secara harfiah. Mengganti
+ * yang satu tanpa yang lain mematikan sinkronisasi tanpa satu pun error — lihat
+ * supabase/migrations/0001_awal.sql.
  */
-export const ID_DOKUMEN = process.env.NEXT_PUBLIC_DOKUMEN_ID ?? "sos-unit-economics";
+export const ID_DOKUMEN = tidakKosong(process.env.NEXT_PUBLIC_DOKUMEN_ID, "sos-unit-economics");
 
 export const kredensialSupabase = (): { url: string; anonKey: string } | null =>
   URL_SUPABASE && ANON_KEY ? { url: URL_SUPABASE, anonKey: ANON_KEY } : null;

@@ -19,6 +19,20 @@ dokumen.
   jatuh ke permintaan biasa — tapi mengisi tab Network dengan 404 merah pada
   aplikasi yang sehat. `prefetch={false}` di `app-shell.tsx`.
 
+- **⛔ Perintah diagnosis yang MENULIS tidak pernah menyentuh baris produksi.**
+  Sesi ini menjalankan `POST` upsert ke `id = sos-unit-economics` sekadar untuk
+  melihat kode statusnya — dan PostgREST memperlakukan upsert sebagai
+  `INSERT … ON CONFLICT DO UPDATE`, jadi kolom `payload` yang dikirim MENIMPA
+  isi yang ada. Seluruh angka tim hilang dalam satu perintah yang dimaksudkan
+  sebagai pembacaan. Kalau perlu menguji tulisan, pakai id buangan — persis yang
+  sudah dilakukan `probe:rls` dengan `probe-rls-jangan-dipakai`.
+
+- **GitHub Actions meneruskan variable yang belum diset sebagai STRING KOSONG.**
+  `process.env.X ?? "bawaan"` karena itu tidak berlaku — `??` hanya jatuh pada
+  `null`/`undefined`. Di `env.ts` itu membuat id dokumen jadi `""`, dan tiap
+  penyimpanan ditolak RLS dengan 401 sementara gejalanya di layar cuma
+  "Gagal sync". Pakai `||` atau helper yang memangkas dulu.
+
 - **Tidak ada directory index di produksi, dan itu perilaku NEXT.** `abbas.co.id`
   dilayani proses Next milik repo portfolio, yang menyajikan berkas `public/`
   hanya pada path PERSISNYA. Terukur: `/perfume-app/index.html` → 200,
