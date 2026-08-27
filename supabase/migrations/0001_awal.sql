@@ -1,16 +1,21 @@
 -- ============================================================================
 -- Unit Economics — skema awal
 --
--- ⚠️ BELUM PERNAH DIJALANKAN TERHADAP DATABASE SUNGGUHAN.
---
 -- Tabel `unit_economics` sudah ADA di project Supabase yang dipakai tim, dibuat
 -- lewat dashboard saat builder HTML ditulis. Berkas ini menuliskan bentuk yang
--- SEHARUSNYA — termasuk RLS yang kemungkinan besar belum menyala di sana.
--- Menjalankannya apa adanya di database yang sudah berisi data akan gagal pada
--- `create table`; jalankan bagian per bagian, dan baca peringatan keamanan di
--- bawah lebih dulu.
+-- SEHARUSNYA, dan ditulis supaya **aman dijalankan utuh berkali-kali** terhadap
+-- database yang sudah berisi data:
 --
--- Cara memastikan keadaan sekarang ada di docs/INFRASTRUKTUR.md.
+--   * `create table if not exists`      — tabel yang ada dilewati
+--   * publikasi realtime dibungkus cek  — lihat catatannya di bawah
+--   * `drop policy if exists` sebelum tiap `create policy`
+--   * `enable row level security` memang idempoten
+--
+-- ⚠️ **BACA PERINGATAN KEAMANAN di bawah sebelum menjalankan.** Menyalakan RLS
+-- tanpa policy membuat dokumen tim tidak bisa dibaca siapa pun, termasuk tim —
+-- jadi jangan jalankan setengah berkas ini.
+--
+-- Query pemeriksa di bagian paling bawah mencetak keadaan akhirnya.
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -40,12 +45,32 @@ comment on column public.unit_economics.payload is
 -- ---------------------------------------------------------------------------
 -- Realtime — supaya perubahan anggota tim lain muncul di layar yang lain.
 --
--- Tanpa baris ini, `langgananDokumen()` di infrastruktur/awan.ts terpasang
--- dengan sukses dan TIDAK PERNAH menerima apa pun. Itu bentuk kegagalan yang
--- paling sulit dilihat: tidak ada error, cuma dua orang yang saling menimpa
--- karena tidak tahu yang lain sedang menyunting.
+-- Tanpa ini, `langgananDokumen()` di infrastruktur/awan.ts terpasang dengan
+-- sukses dan TIDAK PERNAH menerima apa pun. Itu bentuk kegagalan yang paling
+-- sulit dilihat: tidak ada error, cuma dua orang yang saling menimpa karena
+-- tidak tahu yang lain sedang menyunting.
+--
+-- ⚠️ Dibungkus pemeriksaan karena `alter publication … add table` TIDAK
+-- idempoten: pada tabel yang sudah terdaftar ia melempar 42710, dan di SQL
+-- Editor Supabase satu statement yang gagal **membatalkan seluruh sisa skrip**.
+-- Itu sudah terjadi sekali di project ini — dan akibatnya bukan error yang
+-- terlihat, melainkan seluruh blok RLS di bawah yang tidak pernah jalan
+-- sementara pesan yang muncul di layar cuma soal publikasi.
 -- ---------------------------------------------------------------------------
-alter publication supabase_realtime add table public.unit_economics;
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'unit_economics'
+  ) then
+    alter publication supabase_realtime add table public.unit_economics;
+    raise notice 'realtime: unit_economics ditambahkan ke supabase_realtime';
+  else
+    raise notice 'realtime: unit_economics sudah terdaftar — dilewati';
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- ⚠️⚠️ KEAMANAN — BACA SEBELUM MENJALANKAN
@@ -70,9 +95,11 @@ alter publication supabase_realtime add table public.unit_economics;
 -- ---------------------------------------------------------------------------
 alter table public.unit_economics enable row level security;
 
--- Dibungkus `(select …)` supaya Postgres mengevaluasinya sekali per query, bukan
--- sekali per baris. Pada tabel satu baris bedanya nol; ditulis begini karena
--- kebiasaannya yang menular, bukan angkanya.
+-- Ketiga kebijakan memakai perbandingan literal `id = 'sos-unit-economics'`,
+-- bukan pemanggilan fungsi seperti `auth.uid()`. Jadi tidak ada yang perlu
+-- dibungkus `(select …)`: yang dibungkus adalah pemanggilan fungsi, supaya
+-- Postgres mengevaluasinya sekali per query alih-alih sekali per baris.
+-- Disebut di sini karena pola itu wajib begitu ada login — lihat docs/HANDOVER.md.
 drop policy if exists "anon boleh membaca dokumen bersama" on public.unit_economics;
 create policy "anon boleh membaca dokumen bersama"
   on public.unit_economics for select
@@ -97,3 +124,35 @@ create policy "anon boleh memperbarui dokumen bersama"
   with check (id = 'sos-unit-economics');
 
 -- Sengaja TIDAK ada kebijakan `delete`.
+
+-- ---------------------------------------------------------------------------
+-- Pemeriksa — dijalankan terakhir supaya keadaan akhirnya terbaca di layar.
+--
+-- Ada karena "skripnya jalan tanpa error" bukan hal yang sama dengan "RLS
+-- menyala": satu statement yang gagal di tengah membatalkan sisanya, dan pesan
+-- yang muncul di layar cuma soal statement itu. Yang dipercaya baris di bawah.
+--
+-- Yang HARUS terlihat:
+--   rls_menyala          = true
+--   jumlah_policy        = 3
+--   realtime_terdaftar   = true
+--   update_punya_check   = true   ← tanpa ini, id barisnya bisa diubah jadi
+--                                   apa pun dan dokumen hilang dari jangkauan
+-- ---------------------------------------------------------------------------
+select
+  (select relrowsecurity
+     from pg_class
+    where oid = 'public.unit_economics'::regclass)                    as rls_menyala,
+  (select count(*)
+     from pg_policies
+    where schemaname = 'public' and tablename = 'unit_economics')     as jumlah_policy,
+  (select exists (select 1
+       from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = 'unit_economics'))                            as realtime_terdaftar,
+  (select bool_and(with_check is not null)
+     from pg_policies
+    where schemaname = 'public'
+      and tablename = 'unit_economics'
+      and cmd = 'UPDATE')                                             as update_punya_check;

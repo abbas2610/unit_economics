@@ -83,10 +83,20 @@ unit_economics(id text primary key, payload jsonb, updated_at timestamptz)
 
 Skema & kebijakannya di [`supabase/migrations/0001_awal.sql`](../supabase/migrations/0001_awal.sql).
 
-**⚠️ Migrasi itu belum pernah dijalankan terhadap database sungguhan.** Tabelnya
-sudah ada — dibuat lewat dashboard saat builder HTML ditulis — dan berkas SQL itu
-menuliskan bentuk yang *seharusnya*, termasuk RLS yang kemungkinan besar belum
-menyala di sana.
+Tabelnya sudah ada — dibuat lewat dashboard saat builder HTML ditulis — dan
+berkas SQL itu menuliskan bentuk yang *seharusnya*. Ia **idempoten**: aman
+dijalankan utuh berkali-kali terhadap database yang sudah berisi data, dan
+diakhiri query pemeriksa yang mencetak keadaan akhirnya.
+
+**Realtime sudah menyala.** Dibuktikan saat migrasi pertama dijalankan: ia
+berhenti di `ERROR: 42710 … already member of publication "supabase_realtime"`.
+Yang belum dipastikan **RLS**.
+
+> ⚠️ Error itu juga pelajaran yang mahal: di SQL Editor Supabase, satu statement
+> yang gagal **membatalkan seluruh sisa skrip**. Blok RLS di bawahnya tidak
+> pernah jalan, sementara pesan yang muncul di layar cuma soal publikasi — jadi
+> "sudah saya jalankan" dan "RLS menyala" bukan hal yang sama. Percayai query
+> pemeriksa di akhir migrasi, bukan tidak-adanya error.
 
 Cara memastikan keadaan sekarang, di SQL Editor Supabase:
 
@@ -136,15 +146,21 @@ Yang menahan kerusakannya cuma ukuran tim (satu digit) dan langganan realtime,
 yang mendorong perubahan orang lain ke layar dalam hitungan detik — sehingga
 jendela waktu dua orang memegang versi berbeda tetap pendek.
 
-Realtime butuh tabelnya terdaftar di publikasi:
+Realtime butuh tabelnya terdaftar di publikasi `supabase_realtime`, dan di project
+ini **sudah** (lihat di atas). Memeriksanya:
 
 ```sql
-alter publication supabase_realtime add table public.unit_economics;
+select * from pg_publication_tables
+ where pubname = 'supabase_realtime' and tablename = 'unit_economics';
 ```
 
-> ⚠️ Tanpa baris itu, `langgananDokumen()` **terpasang dengan sukses dan tidak
-> pernah menerima apa pun.** Tidak ada error; cuma dua orang yang saling menimpa
-> karena tidak tahu yang lain sedang menyunting.
+> ⚠️ Kalau suatu saat ia dilepas, `langgananDokumen()` **terpasang dengan sukses
+> dan tidak pernah menerima apa pun.** Tidak ada error; cuma dua orang yang saling
+> menimpa karena tidak tahu yang lain sedang menyunting.
+>
+> Menambahkannya kembali: jalankan ulang migrasinya. Jangan pakai
+> `alter publication … add table` telanjang — ia melempar 42710 pada tabel yang
+> sudah terdaftar, dan di SQL Editor kegagalan itu membatalkan sisa skripnya.
 
 ### Tanpa Supabase, aplikasi tetap jalan
 

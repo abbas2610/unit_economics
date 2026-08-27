@@ -47,6 +47,17 @@ dokumen.
   `net::ERR_ABORTED` harus dikecualikan, atau probe layar merah pada perilaku yang
   benar.
 
+- **Di SQL Editor Supabase, satu statement yang gagal membatalkan SISA skripnya.**
+  Migrasi pertama repo ini berhenti di `42710 … already member of publication
+  "supabase_realtime"`, dan blok RLS di bawahnya tidak pernah jalan — sementara
+  pesan di layar cuma soal publikasi. "Sudah saya jalankan" karena itu bukan hal
+  yang sama dengan "RLS menyala". Migrasi ditulis idempoten dan diakhiri query
+  pemeriksa; percayai pemeriksanya, bukan tidak-adanya error.
+
+- **`alter publication … add table` TIDAK idempoten.** Bungkus dengan cek
+  `pg_publication_tables`. `create table if not exists`, `enable row level
+  security`, dan `drop policy if exists` + `create policy` sudah aman.
+
 - **`grep` untuk membuktikan kredensial ter-bundle harus mencari NILAINYA.**
   Pemeriksa CI yang mencari kata `supabase.co` lolos pada bundle yang tidak punya
   kredensial sama sekali — pustaka `@supabase/supabase-js` memuat string itu di

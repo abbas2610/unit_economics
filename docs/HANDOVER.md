@@ -27,7 +27,7 @@ tautologi: yang kedua lulus apa pun yang dilakukan kodenya.
 | Migrasi dokumen dari bentuk lama | ✅ jadi, 57 pemeriksaan |
 | Design token, tema gelap, palet cetak | ✅ jadi, berprobe |
 | Harness probe & CI | ✅ jadi, terbukti jalan lokal |
-| Sinkronisasi Supabase | ⚠️ kode jadi. **Skema & RLS belum pernah dijalankan** — lihat di bawah |
+| Sinkronisasi Supabase | ⚠️ kode jadi. Realtime ✅ menyala. **RLS belum dipastikan** — lihat di bawah |
 | Deploy ke abbas.co.id/perfume | ⛔ workflow ditulis, **belum pernah dijalankan** |
 | Autentikasi | ⛔ tidak ada, dan itu keputusan — lihat di bawah |
 
@@ -39,8 +39,8 @@ Berurutan, dan yang pertama paling penting.
 
 [`supabase/migrations/0001_awal.sql`](../supabase/migrations/0001_awal.sql)
 menuliskan bentuk yang **seharusnya**. Tabelnya sudah ada — dibuat lewat
-dashboard saat builder HTML ditulis — jadi migrasi itu tidak bisa dijalankan apa
-adanya.
+dashboard saat builder HTML ditulis — dan migrasinya ditulis **idempoten**
+justru untuk keadaan itu: aman dijalankan utuh berkali-kali.
 
 Periksa keadaan sekarang di SQL Editor:
 
@@ -49,20 +49,31 @@ select relname, relrowsecurity from pg_class where relname = 'unit_economics';
 select policyname, cmd, qual, with_check from pg_policies where tablename = 'unit_economics';
 ```
 
-Kalau `relrowsecurity` `false`, jalankan bagian `alter table … enable row level
-security` dan seluruh `create policy` di migrasi itu — **setelah** membaca
-peringatan keamanannya. Menyalakan RLS tanpa policy membuat dokumen tim tidak
-bisa dibaca siapa pun, termasuk tim.
+Kalau `relrowsecurity` `false`, jalankan migrasinya **utuh** — ia ditulis
+idempoten, jadi aman dijalankan berkali-kali terhadap database yang sudah berisi
+data. Baca peringatan keamanannya lebih dulu: menyalakan RLS tanpa policy membuat
+dokumen tim tidak bisa dibaca siapa pun, termasuk tim, jadi jangan jalankan
+setengah berkas.
 
-Sekalian pastikan realtime menyala:
+Migrasi itu diakhiri query pemeriksa yang mencetak keadaan akhirnya. Yang harus
+terlihat: `rls_menyala = true`, `jumlah_policy = 3`, `realtime_terdaftar = true`,
+`update_punya_check = true`.
 
-```sql
-select * from pg_publication_tables where tablename = 'unit_economics';
-```
+> ⚠️ **Sudah pernah menggigit sekali.** Menjalankan versi pertama migrasi ini
+> berhenti di `ERROR: 42710: relation "unit_economics" is already member of
+> publication "supabase_realtime"` — dan di SQL Editor Supabase satu statement
+> yang gagal **membatalkan seluruh sisa skrip**. Akibatnya bukan error yang
+> terlihat: blok RLS di bawahnya tidak pernah jalan, sementara pesan di layar
+> cuma soal publikasi. Baris publikasinya sekarang dibungkus pemeriksaan.
 
-> ⚠️ Tanpa itu `langgananDokumen()` **terpasang dengan sukses dan tidak pernah
-> menerima apa pun.** Tidak ada error; cuma dua orang yang saling menimpa karena
-> tidak tahu yang lain sedang menyunting.
+### Realtime: sudah menyala ✅
+
+Error 42710 di atas membuktikannya — `unit_economics` sudah anggota publikasi
+`supabase_realtime`. Tidak ada yang perlu dikerjakan.
+
+> Kalau suatu saat ia dilepas, `langgananDokumen()` akan **terpasang dengan
+> sukses dan tidak pernah menerima apa pun.** Tidak ada error; cuma dua orang
+> yang saling menimpa karena tidak tahu yang lain sedang menyunting.
 
 ### 2. Setel repository variables & secret
 
