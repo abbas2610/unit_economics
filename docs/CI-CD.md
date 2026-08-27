@@ -48,7 +48,11 @@ ada. Yang menjaga datanya RLS — lihat [INFRASTRUKTUR.md](INFRASTRUKTUR.md).
 > bentuk apa pun. Ia melewati seluruh RLS, dan job `bundel` menuliskan
 > lingkungannya ke dalam berkas yang dipublikasikan.
 
-Kalau variables ini kosong, `bundel` **gagal dengan sengaja**. Bundle tanpa
+Kalau variables ini kosong, `bundel` **gagal dengan sengaja** — dan yang diperiksa
+adalah **nilai variabelnya benar-benar ada di dalam bundle**, bukan sekadar kata
+`supabase.co`. Versi pertama pemeriksa itu mencari kata tersebut dan lolos pada
+jalan CI pertama, padahal variables-nya belum diset: pustaka
+`@supabase/supabase-js` memuat string itu di dalam kodenya sendiri. Bundle tanpa
 kredensial tetap jalan — dalam mode lokal, tanpa sinkronisasi tim — dan itu
 kegagalan paling sulit dilihat yang bisa dihasilkan pipeline ini: tidak ada error,
 halamannya normal, dan angka yang diketik satu orang tidak pernah sampai ke yang

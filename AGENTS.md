@@ -47,6 +47,12 @@ dokumen.
   `net::ERR_ABORTED` harus dikecualikan, atau probe layar merah pada perilaku yang
   benar.
 
+- **`grep` untuk membuktikan kredensial ter-bundle harus mencari NILAINYA.**
+  Pemeriksa CI yang mencari kata `supabase.co` lolos pada bundle yang tidak punya
+  kredensial sama sekali — pustaka `@supabase/supabase-js` memuat string itu di
+  dalam kodenya sendiri. Cari nilai variabelnya, dan tolak lebih dulu kalau
+  variabelnya kosong.
+
 - **`pkill` tidak menghentikan proses Node di Git Bash / Windows.** Server uji yang
   lama tetap memegang port, yang baru mati diam-diam dengan `EADDRINUSE` di
   `server.log`, dan probe berikutnya menguji **kode yang lama**. Hentikan lewat

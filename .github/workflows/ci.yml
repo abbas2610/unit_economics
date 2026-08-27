@@ -114,13 +114,29 @@ jobs:
       # dihasilkan pipeline ini: tidak ada error, halamannya normal, dan angka
       # yang diketik satu orang tidak pernah sampai ke yang lain. Jadi ia
       # diperiksa di sini, bukan ditemukan seminggu kemudian di rapat.
+      # ⚠️ Yang dicari NILAI VARIABELNYA, bukan kata "supabase.co".
+      #
+      # Versi pertama langkah ini mencari string "supabase.co" di dalam bundle dan
+      # LOLOS pada jalan CI pertama — padahal variables-nya belum diset sama
+      # sekali. Sebabnya: pustaka `@supabase/supabase-js` yang ikut ter-bundle
+      # memuat string itu di dalam kodenya sendiri. Pemeriksa yang mengaku
+      # membuktikan "sinkronisasi tim aktif" hijau pada bundle yang justru tidak
+      # punya kredensial — bentuk kegagalan yang paling sulit dilihat, di langkah
+      # yang seluruh gunanya mencegah kegagalan yang sulit dilihat.
       - name: Bundle benar-benar membawa sinkronisasi tim
+        env:
+          URL_SUPABASE: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
         run: |
-          if grep -rqF "supabase.co" out/_next/static; then
-            echo "ok  URL Supabase ada di dalam bundle — sinkronisasi tim aktif"
+          if [ -z "$URL_SUPABASE" ]; then
+            echo "::error::Repository variable NEXT_PUBLIC_SUPABASE_URL kosong. Bundle yang ter-deploy akan berjalan mode lokal: halamannya normal, tidak ada error, dan angka yang diketik satu orang tidak pernah sampai ke yang lain."
+            echo "::error::Set NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_ANON_KEY di Settings → Secrets and variables → Actions → Variables. Caranya di docs/CI-CD.md."
+            exit 1
+          fi
+
+          if grep -rqF "$URL_SUPABASE" out/_next/static; then
+            echo "ok  URL project ada di dalam bundle — sinkronisasi tim aktif"
           else
-            echo "::error::Bundle tidak membawa kredensial Supabase: yang ter-deploy akan berjalan mode lokal, dan perubahan satu orang tidak sampai ke yang lain."
-            echo "::error::Set repository variables NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_ANON_KEY. Caranya di docs/CI-CD.md."
+            echo "::error::NEXT_PUBLIC_SUPABASE_URL diset tapi TIDAK ikut ter-bundle. Biasanya berarti next.config.ts atau env.ts berubah dan variabelnya tidak lagi dibaca saat build."
             exit 1
           fi
 
