@@ -1,0 +1,312 @@
+/* ============================================================
+   Unit Economics — Design Tokens (Tailwind v4)
+
+   Sumbernya dua, dan urutannya penting: warnanya diangkat dari builder HTML
+   yang dipakai tim sejak awal (biru #3D5AF1, netral dingin), lalu **setiap
+   pasangan dihitung ulang terhadap WCAG AA**. Kalau keduanya berbeda, kontras
+   yang menang — dan penyimpangannya ditulis di sini, bukan diam-diam.
+
+   Nilai di sini adalah SUMBER KEBENARAN. Jangan hardcode hex di komponen;
+   dijaga `npm run probe:token`.
+
+   Pakai:
+     @import "tailwindcss";
+     @import "../../design-system/tokens/theme.css";
+   ============================================================ */
+
+@theme {
+  /* ---------- Netral dingin ----------
+     Builder lama memakai gradien empat henti plus lima blob blur sebagai latar.
+     Itu dibuang, dan bukan karena selera: bidang berwarna yang bergerak di
+     belakang tabel angka membuat pembacaan kolom melelahkan, dan
+     `backdrop-filter: blur(30px)` pada delapan panel sekaligus adalah alasan
+     halaman itu tersendat di laptop yang dipakai rapat. Yang tersisa satu
+     bidang tenang dan garis 1px. */
+  --color-canvas: #f6f7fb; /* latar area konten                  */
+  --color-surface: #ffffff; /* kartu, topbar, baris tabel         */
+  --color-surface-muted: #f0f2f8; /* header tabel, input, badge netral  */
+  --color-border: #e2e5ee; /* SEMUA garis 1px                    */
+  --color-border-strong: #cdd2e0; /* border tombol outline, chip        */
+  --color-fg: #161a2b; /* judul, isi sel tabel     16,3:1    */
+  --color-fg-muted: #5b6072; /* subjudul, header tabel    6,3:1    */
+  --color-fg-subtle: #6b7086; /* keterangan                4,9:1    */
+
+  /* ---------- Brand ----------
+     ⚠️ Builder lama memakai #5B7FFF sebagai aksen dan mengalasi teks putih di
+     atasnya. Rasionya hanya **3,5:1** — GAGAL AA, dan gagalnya tidak terlihat
+     di layar penulisnya. Jadi biru muda itu turun jadi warna ilustrasi saja,
+     dan fill tombol memakai #3D5AF1 (5,3:1 vs putih).
+
+     ⚠️ `--color-primary` SENGAJA bernilai sama di terang dan gelap: itu
+     satu-satunya cara satu pasangan lolos kontras di kedua tema tanpa dua
+     definisi yang harus dijaga sinkron selamanya. */
+  --color-brand: #5b7fff; /* ilustrasi & aksen SAJA — jangan alasi teks */
+  --color-primary: #3d5af1; /* fill tombol, tab aktif   5,3:1 vs putih   */
+  --color-primary-hover: #2a3e9e; /* hover fill & teks tautan 9,2:1 vs putih   */
+  --color-primary-active: #22337f;
+  --color-primary-subtle: #e8ecfd; /* baris tersorot, pill tab aktif           */
+  --color-primary-disabled: #b3c0f7;
+
+  /* ---------- Arah nilai ----------
+     ⚠️ Warna TIDAK PERNAH jadi satu-satunya penanda untung/rugi. Sekitar 8%
+     laki-laki tidak bisa memisahkan merah dari hijau, dan margin negatif yang
+     ditandai hanya dengan warna tidak jadi "kurang jelas" bagi mereka — ia
+     HILANG. Angkanya wajib bertanda (`+` / `−`); lihat `src/bersama/format.ts`
+     → `delta()` dan `persenDelta()`. Dijaga `npm run probe:format`.
+
+     Hijau builder lama (#188A5C) hanya **4,35:1** — gagal AA. Diganti #0F7A4F
+     (5,4:1). Merahnya (#D0433A, 4,6:1) lolos di atas putih tapi jatuh di atas
+     `surface-muted`; dipakai #B3261E (6,5:1) yang lolos di kedua alas. */
+  --color-naik: #0f7a4f;
+  --color-naik-bg: #e3f5ec;
+  --color-turun: #b3261e;
+  --color-turun-bg: #fdeae7;
+  --color-datar: #5b6072;
+
+  /* ---------- Status ---------- */
+  --color-success-bg: #e3f5ec;
+  --color-success-fg: #0f7a4f;
+  --color-warning-bg: #fdf3de;
+  --color-warning-fg: #8a5a00;
+  --color-danger-bg: #fdeae7;
+  --color-danger-fg: #b3261e;
+  --color-danger-solid: #c0392b;
+  --color-danger-solid-fg: #ffffff; /* 5,4:1 di atas fill */
+  --color-neutral-bg: #f0f2f8;
+  --color-neutral-fg: #5b6072;
+
+  /* ---------- Tipografi ----------
+     Plus Jakarta Sans dipertahankan dari builder lama — itu identitas yang
+     sudah dikenali tim. Yang berubah cara memuatnya: `next/font` menaruh
+     berkasnya di origin sendiri, bukan `<link>` ke fonts.googleapis.com yang
+     menambah satu permintaan pihak ketiga di jalur render.
+
+     Mono dipakai HANYA untuk angka. Rupiah di kolom yang lebarnya berbeda tidak
+     bisa dibandingkan tanpa dibaca satu per satu. */
+  --font-sans:
+    var(--font-jakarta), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
+  --font-mono: var(--font-mono-angka), ui-monospace, Menlo, Consolas, monospace;
+
+  /* Skala padat: 11 / 12 / 13 / 14 / 18. **Tidak ada 16px**, dan itu disengaja.
+     Halaman ini menampilkan tabel perbandingan supplier dan skenario berpuluh
+     baris; 16px memaksa scroll sebelum satu tabel pun muat di layar. */
+  --text-label: 11px;
+  --text-label--line-height: 16px;
+  --text-label--font-weight: 600;
+  --text-label--letter-spacing: 0.05em;
+
+  --text-badge: 11px;
+  --text-badge--line-height: 16px;
+  --text-badge--font-weight: 500;
+
+  --text-meta: 12px;
+  --text-meta--line-height: 16px;
+
+  --text-body: 13px;
+  --text-body--line-height: 18px;
+
+  --text-card-title: 14px;
+  --text-card-title--line-height: 20px;
+  --text-card-title--font-weight: 600;
+
+  --text-page-title: 18px;
+  --text-page-title--line-height: 24px;
+  --text-page-title--font-weight: 700;
+  --text-page-title--letter-spacing: -0.02em;
+
+  /* Angka besar di kartu KPI. Satu-satunya ukuran di atas 18px, dan ia bukan
+     teks — ia satu nilai yang harus terbaca dari seberang meja saat rapat. */
+  --text-kpi: 22px;
+  --text-kpi--line-height: 28px;
+  --text-kpi--font-weight: 700;
+  --text-kpi--letter-spacing: -0.01em;
+
+  /* ---------- Radius ----------
+     Builder lama memakai 22px. Radius sebesar itu memakan sudut sel tabel dan
+     memaksa padding tambahan supaya isinya tidak menyentuh lengkungannya. */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+
+  /* ---------- Ukuran struktural ---------- */
+  --spacing-topbar: 52px;
+  --spacing-tabbar: 44px;
+  --spacing-container: 1180px; /* sama seperti .wrap di builder lama */
+  --spacing-row: 42px;
+  --spacing-control: 36px;
+  --spacing-control-sm: 29px;
+  --spacing-badge: 18px;
+
+  /* ---------- Elevasi ----------
+     Sistem ini TIDAK memakai shadow. Satu-satunya pengecualian: overlay yang
+     memang harus terbaca melayang. Dijaga `npm run probe:builder`. */
+  --shadow-overlay: 0 4px 12px rgb(22 26 43 / 0.1);
+
+  /* ---------- Gerak ----------
+     Asimetris dan itu disengaja: yang lama pergi cepat supaya tidak berebut
+     perhatian, yang baru datang sedikit lebih lambat supaya sempat terbaca. */
+  --duration-exit: 90ms;
+  --duration-enter: 160ms;
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* Varian berbasis class, bukan prefers-color-scheme — supaya tombol di topbar
+   yang mengendalikannya. Class-nya dipasang script sebelum paint (layout.tsx);
+   mencerminkannya ke `useState` melahirkan hydration mismatch. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+   Dark mode — netral DINGIN gelap, mengikuti biru brand.
+   Semua rasio di bawah dihitung terhadap --color-surface (#141723);
+   tidak ada yang di bawah 4,5:1.
+   ============================================================ */
+:root:where(.dark) {
+  --color-canvas: #0d0f18;
+  --color-surface: #141723;
+  --color-surface-muted: #1c2030;
+  --color-border: #262b3d;
+  --color-border-strong: #363c53;
+  --color-fg: #e9ebf5; /* 15,0:1 */
+  --color-fg-muted: #a3a8bd; /*  7,6:1 */
+  --color-fg-subtle: #8b90a6; /*  5,6:1 */
+
+  --color-brand: #7b98ff;
+  --color-primary: #3d5af1; /* TETAP — putih di atasnya 5,3:1 */
+  --color-primary-hover: #8fa4ff; /* teks tautan di gelap     7,6:1 */
+  --color-primary-active: #b3c0f7;
+  --color-primary-subtle: #1a2145;
+  --color-primary-disabled: #2a3564;
+
+  --color-naik: #5fd9a0; /* 10,0:1 */
+  --color-naik-bg: #0b2a22;
+  --color-turun: #f79a8e; /*  8,4:1 */
+  --color-turun-bg: #3a1417;
+  --color-datar: #a3a8bd;
+
+  --color-success-bg: #0b2a22;
+  --color-success-fg: #5fd9a0;
+  --color-warning-bg: #372a0c;
+  --color-warning-fg: #f2c55c;
+  --color-danger-bg: #3a1417;
+  --color-danger-fg: #f79a8e;
+  --color-danger-solid: #f79a8e;
+  --color-danger-solid-fg: #3a1417;
+  --color-neutral-bg: #1c2030;
+  --color-neutral-fg: #a3a8bd;
+}
+
+/* ============================================================
+   Palet cetak
+   ============================================================
+
+   Tim yang memakai tema gelap mencetak halaman hitam pekat: boros tinta, dan
+   angka putih di atas hitam yang dicetak printer laser murah jadi abu yang
+   tidak terbaca. Jadi tema apa pun yang aktif di layar, di atas kertas
+   palet-nya kembali ke kertas putih.
+
+   Lebih gelap sedikit daripada palet layar (`fg-muted` 4a4f60 vs 5b6072):
+   kontras di kertas lebih rendah daripada di layar bercahaya, dan keterangan
+   yang pas dibaca di monitor jadi samar setelah dicetak.
+   ============================================================ */
+@media print {
+  :root,
+  :root.dark {
+    --color-canvas: #ffffff;
+    --color-surface: #ffffff;
+    --color-surface-muted: #f4f5f9;
+    --color-border: #cdd2e0;
+    --color-border-strong: #a9b0c4;
+    --color-fg: #161a2b;
+    --color-fg-muted: #4a4f60;
+    --color-fg-subtle: #5b6072;
+    --color-primary-subtle: #eef1fd;
+  }
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+/* CATATAN NON-CSS: `lang="id-ID"` dipasang di <html> pada src/app/layout.tsx.
+   Tidak bisa diatur dari CSS — `lang` atribut HTML, bukan properti CSS. */
+@layer base {
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 18px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Kolom rupiah dan kolom qty harus bisa dibandingkan tanpa dibaca. */
+  th[data-numeric],
+  td[data-numeric] {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+}
+
+/* ============================================================
+   Utility semantik
+   ============================================================ */
+@layer components {
+  .page-title {
+    font-size: 18px;
+    line-height: 24px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--color-fg);
+  }
+
+  .page-subtitle {
+    margin-top: 6px;
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--color-fg-muted);
+  }
+
+  .card {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+
+  .th {
+    height: 40px;
+    padding: 0 12px;
+    background: var(--color-surface-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-fg-muted);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .td {
+    padding: 12px;
+    font-size: 13px;
+    line-height: 18px;
+    vertical-align: middle;
+  }
+
+  .badge {
+    display: inline-flex;
+    height: 18px;
+    align-items: center;
+    border-radius: 9999px;
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  /* Angka yang harus sejajar antar baris. */
+  .tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}

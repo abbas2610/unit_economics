@@ -1,0 +1,33 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# next.js
+/.next/
+/out/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+.pnpm-debug.log*
+
+# env — .env.example DIKOMIT, sisanya tidak.
+#
+# Anon key Supabase memang dirancang sampai ke browser dan tidak rahasia; yang
+# menjaga datanya RLS. Tapi SUPABASE_SERVICE_ROLE_KEY melewati seluruh RLS, dan
+# satu commit yang lolos ke repo publik tidak bisa ditarik kembali dari riwayat.
+.env*
+!.env.example
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# hasil probe
+.probe-shots/
+server.log

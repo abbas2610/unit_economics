@@ -1,0 +1,41 @@
+{
+  "name": "unit-economics",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 4880",
+    "build": "next build",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "serve:build": "node scripts/serve-build.mjs ./out 4880",
+    "tunggu:server": "node scripts/tunggu-server.mjs http://localhost:4880/perfume-app 60",
+    "probe:daftar": "node scripts/jalankan-probe.mjs daftar",
+    "probe:data": "node scripts/jalankan-probe.mjs data",
+    "probe:layar": "node scripts/jalankan-probe.mjs layar http://localhost:4880/perfume-app",
+    "probe:semua": "node scripts/jalankan-probe.mjs semua http://localhost:4880/perfume-app",
+    "probe:arsitektur": "node scripts/probe-arsitektur.mjs",
+    "probe:token": "node scripts/probe-token.mjs",
+    "probe:format": "node --import ./scripts/ts-register.mjs scripts/probe-format.mts",
+    "probe:hitung": "node --import ./scripts/ts-register.mjs scripts/probe-hitung.mts",
+    "probe:dokumen": "node --import ./scripts/ts-register.mjs scripts/probe-dokumen.mts",
+    "probe:layar-builder": "node scripts/probe-builder.mjs http://localhost:4880/perfume-app"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.60.0",
+    "lucide-react": "^1.33.0",
+    "next": "16.3.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.1",
+    "playwright": "^1.62.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,141 @@
+/**
+ * Initial investment — seluruh uang yang keluar sebelum botol pertama terjual.
+ *
+ * Dua kategori, dan pemisahannya adalah pertanyaan yang paling sering ditanya
+ * ke halaman ini: berapa yang jadi BARANG, dan berapa yang jadi PERHATIAN.
+ *
+ *     Category 1 — Produk     bahan baku + botol & packaging + fulfillment
+ *     Category 2 — Marketing  offline + online + lainnya
+ *
+ * ## Pajak tidak jadi baris sendiri
+ *
+ * PPN fragrance dan perizinan botol sudah menempel di komponennya
+ * masing-masing — PPN di nilai pembelian fragrance, perizinan di harga botol
+ * per pcs. `totalPajak` di bawah MENJUMLAHKAN ULANG keduanya untuk ditampilkan
+ * sebagai satu KPI, bukan menambahkannya lagi ke total. Menjadikannya baris
+ * tersendiri di rincian akan menghitungnya dua kali, dan hasilnya masih terlihat
+ * seperti angka yang wajar.
+ */
+import { boxPerBotol } from "@/contexts/asumsi/domain/asumsi";
+import { nilaiPembelian, totalLegalVarian } from "@/contexts/fragrance/domain/varian";
+import { investasiSupplier } from "@/contexts/supplier/domain/supplier";
+import type { InvestasiSupplier, Supplier } from "@/contexts/supplier/domain/supplier";
+import type { Dokumen } from "@/contexts/dokumen/domain/dokumen";
+import { hasilProduksi, supplierTerpilih } from "@/contexts/unit-economics/aplikasi/unit-economics";
+
+export type RincianInvestasi = {
+  supplierKecil: Supplier | undefined;
+  supplierBesar: Supplier | undefined;
+  invKecil: InvestasiSupplier;
+  invBesar: InvestasiSupplier;
+
+  qtyKecil: number;
+  qtyBesar: number;
+  totalBotol: number;
+
+  /* — bahan baku — */
+  fragranceDasar: number;
+  fragrancePPN: number;
+  fragranceTotal: number;
+  oemTotal: number;
+  legalVarian: number;
+  bahanBaku: number;
+
+  /* — botol & packaging — */
+  boxTotal: number;
+  botolPacking: number;
+
+  fulfillmentTotal: number;
+
+  /** Category 1 */
+  produk: number;
+  /** Category 2 */
+  marketing: number;
+  total: number;
+
+  /** Ditampilkan sebagai KPI. Sudah termasuk di `total`, bukan tambahan. */
+  totalPajak: number;
+
+  /** Botol yang dibeli melebihi kebutuhan batch karena MOQ. */
+  kelebihanKecil: number;
+  kelebihanBesar: number;
+  nilaiKelebihanKecil: number;
+  nilaiKelebihanBesar: number;
+};
+
+const NOL: InvestasiSupplier = {
+  qty: 0,
+  molding: 0,
+  botol: 0,
+  aksesoris: 0,
+  perizinan: 0,
+  freight: 0,
+  total: 0,
+  satuan: { botol: 0, perizinan: 0, aksesoris: 0, total: 0 },
+};
+
+export function initialInvestment(dok: Dokumen): RincianInvestasi {
+  const { kurs, perizinanPct, ppnPct, oemKecil, oemBesar, fulfillment } = dok.asumsi;
+  const hasil = hasilProduksi(dok);
+  const qtyKecil = hasil.pcsKecil;
+  const qtyBesar = hasil.pcsBesar;
+
+  const supKecil = supplierTerpilih(dok, "kecil");
+  const supBesar = supplierTerpilih(dok, "besar");
+  const invKecil = supKecil
+    ? investasiSupplier(supKecil, kurs, perizinanPct, qtyKecil)
+    : NOL;
+  const invBesar = supBesar
+    ? investasiSupplier(supBesar, kurs, perizinanPct, qtyBesar)
+    : NOL;
+
+  const totalBotol = qtyKecil + qtyBesar;
+
+  const fragranceDasar = nilaiPembelian(dok.varian, kurs);
+  const fragrancePPN = fragranceDasar * ((ppnPct || 0) / 100);
+  const fragranceTotal = fragranceDasar + fragrancePPN;
+  const oemTotal = qtyKecil * oemKecil + qtyBesar * oemBesar;
+  const legalVarian = totalLegalVarian(dok.varian, dok.legalPerVarian);
+  const bahanBaku = fragranceTotal + oemTotal + legalVarian;
+
+  const boxTotal = totalBotol * boxPerBotol(dok.asumsi);
+  const botolPacking = invKecil.total + invBesar.total + boxTotal;
+  const fulfillmentTotal = totalBotol * fulfillment;
+
+  const produk = bahanBaku + botolPacking + fulfillmentTotal;
+  const marketing = dok.marketing.offline + dok.marketing.online + dok.marketing.lainnya;
+
+  /* Selisih MOQ vs kebutuhan batch. Dinilai dengan biaya botol per unit, bukan
+     total per unit termasuk molding: molding sudah dibayar penuh apa pun
+     qty-nya, jadi memasukkannya ke "nilai kelebihan stok" akan melebih-lebihkan
+     modal yang benar-benar tertahan di gudang. */
+  const kelebihanKecil = Math.max(0, invKecil.qty - qtyKecil);
+  const kelebihanBesar = Math.max(0, invBesar.qty - qtyBesar);
+
+  return {
+    supplierKecil: supKecil,
+    supplierBesar: supBesar,
+    invKecil,
+    invBesar,
+    qtyKecil,
+    qtyBesar,
+    totalBotol,
+    fragranceDasar,
+    fragrancePPN,
+    fragranceTotal,
+    oemTotal,
+    legalVarian,
+    bahanBaku,
+    boxTotal,
+    botolPacking,
+    fulfillmentTotal,
+    produk,
+    marketing,
+    total: produk + marketing,
+    totalPajak: fragrancePPN + invKecil.perizinan + invBesar.perizinan + legalVarian,
+    kelebihanKecil,
+    kelebihanBesar,
+    nilaiKelebihanKecil: kelebihanKecil * invKecil.satuan.total,
+    nilaiKelebihanBesar: kelebihanBesar * invBesar.satuan.total,
+  };
+}

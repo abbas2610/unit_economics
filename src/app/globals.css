@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+/* Satu sumber kebenaran untuk warna, tipografi, radius, dan ukuran struktural.
+   Diturunkan dari identitas builder lama lalu dihitung ulang terhadap WCAG AA —
+   lihat design-system/README.md. Jangan hardcode hex di komponen; pakai utility
+   yang dihasilkan token ini (bg-canvas, text-fg-muted, h-control, text-naik,
+   text-turun, text-page-title, dst). Dijaga `npm run probe:token`. */
+@import "../../design-system/tokens/theme.css";
+
+@layer base {
+  /* Halaman ini padat data dan dipakai berjam-jam; scrollbar tipis mengurangi
+     tabrakan visual dengan garis 1px yang jadi satu-satunya pemisah. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+  }
+
+  /* Spinner bawaan `<input type=number>` tidak dipakai — seluruh isian angka
+     di sini `type="text"` supaya titik ribuan bisa diketik. Aturan ini menjaga
+     kalau suatu saat ada yang lolos. */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+/* ============================================================
+   Cetak / Simpan PDF
+   ============================================================
+
+   Tombol "Print / PDF" adalah cara angka ini sampai ke rapat, jadi hasil
+   cetaknya bukan renungan belakangan. Dua hal yang diatur di sini — yang
+   STRUKTURAL. Palet cetaknya sendiri tinggal di theme.css bersama palet lain,
+   karena warna cuma punya satu sumber kebenaran di repo ini dan "warna khusus
+   cetak" bukan pengecualian yang layak dibuat.
+*/
+@media print {
+  /* Tab, tombol, dan sakelar di atas kertas memakan ruang dan menyesatkan —
+     tidak ada yang bisa mengkliknya. */
+  [data-cetak="sembunyi"] {
+    display: none !important;
+  }
+
+  /* Rincian COGS yang terbelah dua halaman kehilangan barisnya sendiri. */
+  .card {
+    break-inside: avoid;
+  }
+}
