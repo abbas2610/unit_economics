@@ -144,6 +144,13 @@ drop policy if exists "Allow anon read"   on public.unit_economics;
 drop policy if exists "Allow anon upsert" on public.unit_economics;
 drop policy if exists "Allow anon update" on public.unit_economics;
 
+-- ⚠️ Id-nya ditulis HARFIAH di ketiga kebijakan, sementara aplikasi membacanya
+-- dari `NEXT_PUBLIC_DOKUMEN_ID` yang boleh diganti. Mengganti env tanpa mengganti
+-- kebijakan ini mematikan sinkronisasi TANPA SATU PUN ERROR: pembacaan
+-- mengembalikan nol baris, aplikasi menyimpulkan dokumen bersama belum ada, lalu
+-- penyisipannya ikut ditolak kebijakan yang sama. Yang terlihat di layar cuma
+-- angka contoh dan status "Mode lokal".
+--
 -- Ketiga kebijakan memakai perbandingan literal `id = 'sos-unit-economics'`,
 -- bukan pemanggilan fungsi seperti `auth.uid()`. Jadi tidak ada yang perlu
 -- dibungkus `(select …)`: yang dibungkus adalah pemanggilan fungsi, supaya
