@@ -85,15 +85,14 @@ Lalu tiga lapis pemeriksaan:
 
 | Yang diperiksa | Kenapa |
 | --- | --- |
-| `/perfume/`, `/perfume-app/`, `/perfume-app/unit-economics/` | pintu yang dipakai orang, dan **satu tab dalam** |
+| `/perfume/`, `/perfume-app/index.html`, `/perfume-app/unit-economics/index.html` | pintu yang dipakai orang, dan **satu tab dalam** |
 | `/`, `/sm/`, `/whitespace/` | deploy portfolio menimpa `public/` — tetangga wajib ikut diperiksa |
-| `/perfume-app/ngawur-xyz/` harus 404 | kontrol negatif; server yang menjawab 200 untuk apa pun juga lulus semua baris di atas |
+| `/perfume-app/ngawur-xyz/index.html` harus 404 | kontrol negatif; server yang menjawab 200 untuk apa pun juga lulus semua baris di atas |
 
-> Baris `/perfume-app/unit-economics/` adalah yang membuktikan hosting menyajikan
-> `index.html` untuk permintaan direktori. Kalau ia 404, tab-tab aplikasi tidak
-> bisa ditautkan maupun dimuat ulang — dan gejalanya menipu, karena navigasi dari
-> dalam aplikasi tetap mulus. Perbaikannya di
-> [INFRASTRUKTUR.md](INFRASTRUKTUR.md) → "Yang harus diperiksa pada deploy pertama".
+> ⚠️ Ketiganya menyebut `index.html`, dan itu bukan kelalaian: `abbas.co.id`
+> dilayani proses Next yang menyajikan berkas `public/` hanya pada path persisnya.
+> `/perfume-app/` → 404, `/perfume-app/index.html` → 200. Sudah diukur; lihat
+> [INFRASTRUKTUR.md](INFRASTRUKTUR.md).
 
 ## Daftar probe tidak ditulis di sini
 

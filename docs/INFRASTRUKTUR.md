@@ -32,33 +32,48 @@ seluruh probe layar harus menembak server yang disalin manual.
 di panel hosting tidak melakukan apa pun. Mengganti project Supabase berarti build
 ulang dan deploy ulang — bukan restart.
 
-## Yang harus diperiksa pada deploy pertama
+## ⚠️ Tidak ada directory index — berkas hanya hidup di path PERSISNYA
 
-Satu hal yang **belum pernah dibuktikan di hosting sungguhan**, dan gejalanya
-mudah salah didiagnosis:
+Ini sudah diukur langsung terhadap produksi, bukan diasumsikan:
 
-> **Buka `https://abbas.co.id/perfume-app/investasi/` langsung di tab baru.**
->
-> - **200** → semuanya benar, tidak ada yang perlu dilakukan.
-> - **404** → hosting tidak menyajikan `index.html` untuk permintaan direktori.
+```
+/perfume-app/index.html         → 200
+/perfume-app/                   → 404   (X-Powered-By: Next.js)
+/sm-app/produksi/index.html     → 200
+/sm-app/produksi/               → 404
+/perfume/                       → 200   (rute Next milik portfolio)
+```
 
-`trailingSlash: true` membuat tiap tautan tab berbentuk `/perfume-app/investasi/`.
-Apache dan LiteSpeed menyajikan `index.html` di dalamnya secara bawaan
-(DirectoryIndex), dan Hostinger memakai keduanya — jadi kemungkinan besar ini
-tidak jadi masalah. Tapi kalau ternyata tidak:
+Header `X-Powered-By: Next.js` pada 404-nya yang menjelaskan semuanya:
+`abbas.co.id` **bukan** Apache yang menyajikan berkas statis — ia proses Next
+milik repo portfolio. Dan **Next menyajikan berkas `public/` hanya pada path
+persisnya**: tidak ada `DirectoryIndex`, tidak ada `MultiViews`.
 
-**Gejalanya menipu.** Berpindah tab dari dalam aplikasi tetap mulus — Next
-menavigasi di sisi klien tanpa meminta dokumen baru. Yang gagal cuma **memuat
-ulang halaman** dan **membuka tautan tab yang dikirim lewat chat**. Jadi laporan
-yang masuk akan berbunyi "kadang 404", bukan "tab tidak jalan".
+Konsekuensinya, dan ini yang harus dipegang siapa pun yang menyentuh rute:
 
-**Perbaikannya** kalau itu terjadi: tambahkan `.htaccess` di `public/perfume-app/`
-pada repo portfolio dengan `DirectoryIndex index.html`, atau ubah `trailingSlash`
-jadi `false` dan tambahkan aturan rewrite. Yang pertama jauh lebih sederhana.
+| | |
+| --- | --- |
+| Pintu yang dipakai orang | `abbas.co.id/perfume` — rute portfolio yang mem-`iframe` `/perfume-app/index.html` |
+| Berpindah tab | **jalan** — navigasi sisi klien, tidak ada permintaan dokumen |
+| Tautan langsung ke satu tab | `abbas.co.id/perfume-app/investasi/index.html` — **wajib pakai `/index.html`** |
+| `abbas.co.id/perfume-app/investasi/` | **404, selamanya** |
 
-`scripts/serve-build.mjs` meniru perilaku DirectoryIndex supaya probe layar
-menguji hal yang sama dengan produksi — dan tetap 404 untuk path yang tidak ada,
-yang membuat kontrol negatif `tunggu-server.mjs` bermakna.
+Karena aplikasinya dibungkus `iframe`, address bar pembaca selalu menunjukkan
+`abbas.co.id/perfume` apa pun tab yang dibuka — jadi 404 di atas tidak pernah
+mengenai jalur yang dipakai sehari-hari. Yang terkena cuma tautan yang diketik
+tangan.
+
+> ⚠️ **Jangan coba menambalnya dengan `.htaccess`.** Perilaku ini datang dari
+> Next, bukan dari konfigurasi server; `DirectoryIndex` tidak akan dibaca siapa
+> pun. Kalau tab benar-benar perlu bisa ditautkan langsung, yang dibutuhkan rute
+> sungguhan di repo portfolio — pola yang sudah dipakai `/sm/produksi/` dan
+> teman-temannya.
+
+`scripts/serve-build.mjs` berperilaku **persis sama**: hanya path persis, bahkan
+akarnya pun tidak dipetakan ke `index.html`. Versi sebelumnya sempat me-resolve
+`/foo/` — dan itu membuat seluruh probe layar lulus untuk halaman yang 404 setelah
+deploy. **Server uji yang lebih permisif daripada produksi lebih buruk daripada
+tidak ada server uji.**
 
 ## Prefetch dimatikan, dan itu disengaja
 

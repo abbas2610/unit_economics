@@ -91,20 +91,29 @@ publikasi `supabase_realtime`. Tidak ada yang perlu dikerjakan.
 > sukses dan tidak pernah menerima apa pun.** Tidak ada error; cuma dua orang
 > yang saling menimpa karena tidak tahu yang lain sedang menyunting.
 
-### 2. Setel repository variables & secret
+### 2. Secret `PORTFOLIO_PUSH_TOKEN` — SATU-SATUNYA YANG TERSISA
 
-Tanpa `NEXT_PUBLIC_SUPABASE_URL` dan `NEXT_PUBLIC_SUPABASE_ANON_KEY`, job
-`bundel` gagal dengan sengaja — bundle tanpa kredensial berjalan mode lokal, dan
-itu kegagalan yang tidak terlihat. Caranya di [CI-CD.md](CI-CD.md).
+Repository variables `NEXT_PUBLIC_SUPABASE_URL` dan `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+**sudah diset**. Yang belum: secret `PORTFOLIO_PUSH_TOKEN`, yang dipakai job
+`kirim` untuk mendorong bundle ke repo portfolio. Caranya di [CI-CD.md](CI-CD.md).
 
-### 3. Buka satu tab dalam langsung di produksi
+> ⚠️ Begitu secret itu ada, **push berikutnya ke `main` langsung mengubah
+> abbas.co.id/perfume.** Sampai saat itu CI berhenti di `kirim` dan tidak ada yang
+> ter-deploy.
 
-`https://abbas.co.id/perfume-app/investasi/`. Kalau 404, hosting tidak menyajikan
-`index.html` untuk permintaan direktori, dan tab-tab aplikasi tidak bisa
-ditautkan maupun dimuat ulang. Gejalanya menipu — navigasi dari dalam aplikasi
-tetap mulus. Perbaikannya di [INFRASTRUKTUR.md](INFRASTRUKTUR.md).
+### 3. ✅ Bentuk URL — SUDAH DIUKUR, tidak ada yang perlu dikerjakan
 
-CI sudah memeriksa baris itu; ini untuk deploy pertama yang manual.
+`abbas.co.id` dilayani proses Next milik repo portfolio, dan Next menyajikan
+berkas `public/` **hanya pada path persisnya**. Terukur: `/perfume-app/index.html`
+→ 200, `/perfume-app/` → 404.
+
+Jadi tautan langsung ke satu tab **wajib menyebut `/index.html`**:
+`abbas.co.id/perfume-app/investasi/index.html`. Berpindah tab dari dalam aplikasi
+tetap mulus karena itu navigasi sisi klien, dan address bar pembaca selalu
+menunjukkan `abbas.co.id/perfume` karena aplikasinya dibungkus iframe.
+
+Jangan mencoba menambalnya dengan `.htaccess` — perilakunya datang dari Next,
+bukan dari server. Rinciannya di [INFRASTRUKTUR.md](INFRASTRUKTUR.md).
 
 ### 4. Putar anon key Supabase
 

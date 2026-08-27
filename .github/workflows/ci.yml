@@ -285,17 +285,17 @@ jobs:
           gagal=0
 
           # Pintu yang dipakai orang adalah /perfume/, yang mem-iframe bundle ini.
-          for u in "/perfume/" "/perfume-app/" "/perfume-app/unit-economics/"; do
+          for u in "/perfume/" "/perfume-app/index.html" "/perfume-app/unit-economics/index.html"; do
             kode=$(curl -s -o /dev/null -w '%{http_code}' "https://abbas.co.id$u?cb=$GITHUB_RUN_ID")
             echo "$kode  $u"
             [ "$kode" = "200" ] || gagal=1
           done
 
-          # ⚠️ Baris /perfume-app/unit-economics/ di atas adalah yang membuktikan
-          # hosting menyajikan index.html untuk permintaan direktori. Kalau ia
-          # 404, tab-tab aplikasi tidak bisa ditautkan maupun dimuat ulang —
-          # gejala yang mudah salah didiagnosis karena navigasi DARI DALAM
-          # aplikasi tetap mulus. Perbaikannya di docs/INFRASTRUKTUR.md.
+          # ⚠️ Path-nya menyebut index.html, dan itu BUKAN kelalaian. Bundle ini
+          # tinggal di public/ aplikasi Next milik repo portfolio, dan Next
+          # menyajikan berkas public/ hanya pada path PERSISNYA — tidak ada
+          # directory index. Diukur di produksi: /perfume-app/index.html → 200,
+          # /perfume-app/ → 404. Lihat docs/INFRASTRUKTUR.md.
 
           # Regresi tetangga: satu domain, beberapa aplikasi. Deploy portfolio
           # menimpa public/, jadi yang lain wajib ikut diperiksa.

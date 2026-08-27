@@ -19,11 +19,17 @@ dokumen.
   jatuh ke permintaan biasa — tapi mengisi tab Network dengan 404 merah pada
   aplikasi yang sehat. `prefetch={false}` di `app-shell.tsx`.
 
-- **`trailingSlash: true` bergantung pada DirectoryIndex hosting.** Tiap tautan
-  tab jadi `/perfume-app/investasi/`. Kalau host tidak menyajikan `index.html`
-  untuk permintaan direktori, **gejalanya menipu**: pindah tab dari dalam
-  aplikasi tetap mulus (navigasi klien), yang gagal cuma reload dan tautan yang
-  dikirim lewat chat. Laporannya akan berbunyi "kadang 404".
+- **Tidak ada directory index di produksi, dan itu perilaku NEXT.** `abbas.co.id`
+  dilayani proses Next milik repo portfolio, yang menyajikan berkas `public/`
+  hanya pada path PERSISNYA. Terukur: `/perfume-app/index.html` → 200,
+  `/perfume-app/` → 404 dengan header `X-Powered-By: Next.js`. `.htaccess` tidak
+  akan menambalnya. Tautan langsung ke satu tab wajib menyebut `/index.html`;
+  berpindah tab dari dalam aplikasi tetap mulus karena itu navigasi sisi klien.
+
+- **Server uji WAJIB sama pelitnya dengan produksi.** `serve-build.mjs` sempat
+  saya buat me-resolve `/foo/` jadi `/foo/index.html` atas asumsi hosting Apache.
+  Asumsinya salah, dan selama itu seluruh probe layar lulus untuk halaman yang
+  akan 404 setelah deploy. Sekarang bahkan akarnya tidak dipetakan.
 
 - **`next start` TIDAK menyajikan `output: "export"`.** Probe layar memakai
   `scripts/serve-build.mjs`, bukan `next start`.

@@ -22,9 +22,14 @@ Live di **<https://abbas.co.id/perfume>** — bundle-nya tinggal di
 | 5 | `/unit-economics` | COGS per botol, gross margin, skenario perbandingan |
 | 6 | `/sensitivitas` | Simulasi "bagaimana jika", dampak per variabel, target omzet |
 
-Tiap langkah punya **URL sendiri**. Itu perubahan nyata dari builder HTML
-sebelumnya, di mana keenam tab adalah satu halaman dengan `display:none` — tidak
-ada satu tab pun yang bisa ditautkan ke rekan kerja.
+Tiap langkah punya **rute sendiri**, jadi tombol back browser bekerja dan tiap tab
+bisa dibuka langsung. Itu perubahan nyata dari builder HTML sebelumnya, di mana
+keenam tab adalah satu halaman dengan `display:none`.
+
+> ⚠️ Di produksi, tautan langsung ke satu tab wajib menyebut `/index.html`
+> (`abbas.co.id/perfume-app/investasi/index.html`). Berkas `public/` di sana
+> disajikan proses Next hanya pada path persisnya — lihat
+> [docs/INFRASTRUKTUR.md](docs/INFRASTRUKTUR.md).
 
 ## Menjalankan
 
