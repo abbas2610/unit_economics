@@ -16,6 +16,7 @@
     "probe:arsitektur": "node scripts/probe-arsitektur.mjs",
     "probe:token": "node scripts/probe-token.mjs",
     "probe:format": "node --import ./scripts/ts-register.mjs scripts/probe-format.mts",
+    "probe:jaga": "node scripts/probe-jaga.mjs",
     "probe:hitung": "node --import ./scripts/ts-register.mjs scripts/probe-hitung.mts",
     "probe:dokumen": "node --import ./scripts/ts-register.mjs scripts/probe-dokumen.mts",
     "probe:pemulihan": "node --import ./scripts/ts-register.mjs scripts/probe-pemulihan.mts",

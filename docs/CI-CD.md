@@ -121,3 +121,60 @@ npm run probe:layar
 ```
 
 Sama persis dengan yang dijalankan CI, kecuali job `kirim`.
+
+---
+
+## Workflow kedua: `Jaga Supabase`
+
+Berkasnya: [`.github/workflows/jaga-supabase.yml`](../.github/workflows/jaga-supabase.yml).
+Terpisah dari `ci.yml` dengan sengaja — ia tidak ada hubungannya dengan
+membangun atau mengirim, dan menumpangkannya ke sana berarti tiap push ikut
+menjalankannya sementara tiap jadwal ikut menyeret empat job lain.
+
+Supabase tier gratis **menjeda project yang tidak menerima permintaan** selama
+beberapa hari. Data tidak hilang, tapi aplikasinya berhenti menyimpan — dan yang
+terlihat tim cuma status "Gagal sync", bukan kata "paused". Workflow ini
+mengirim satu `GET` tiap hari supaya hitungan itu tidak pernah sampai.
+
+**Harian, bukan mingguan.** Cron GitHub tidak dijamin tepat waktu; pada jam
+sibuk ia bisa tertunda atau dilewati. Jadwal yang pas-pasan dengan ambang jeda
+akan gagal justru pada minggu tersibuk. Harian memberi margin beberapa hari, dan
+ongkosnya satu permintaan HTTP.
+
+### ⛔ Ia hanya membaca, dan itu ditegakkan
+
+Tidak ada `-X POST`, tidak ada `--data`, tidak ada upsert. Alasannya di
+docs/SESI-2026-08-27.md: repo ini kehilangan seluruh angka tim karena satu
+perintah yang dimaksudkan sebagai pembacaan ternyata menulis.
+
+Workflow ini jalan otomatis tiap hari tanpa ada yang menonton. Kalau ia menulis,
+ia menulis ratusan kali setahun ke dokumen tim dengan log yang hijau. Godaan
+yang harus ditolak: *"biar pasti dianggap aktif, tulis saja baris heartbeat."*
+`GET` sudah cukup — PostgREST menjalankan `select` sungguhan untuk melayaninya.
+
+Dijaga `npm run probe:jaga`, yang menyisir berkasnya **setelah komentar
+dibuang** — berkas itu menyebut `POST` dan `upsert` di dalam komentarnya justru
+untuk menjelaskan kenapa keduanya terlarang, dan detektor yang menyisir seluruh
+teks akan merah pada perilaku yang benar.
+
+### Yang dibuktikan tiap jalan
+
+HTTP 200 **tidak** dianggap cukup: proxy dan halaman perantara juga menjawab
+200, jadi keepalive yang puas dengan kode status bisa hijau tiap hari sambil
+membiarkan project terjeda. Yang dituntut barisnya benar-benar kembali.
+
+### ⚠️ Jebakan: GitHub mematikan cron-nya sendiri
+
+**Workflow terjadwal dinonaktifkan setelah 60 hari tanpa aktivitas di repo.**
+Tidak ada commit selama dua bulan → cron berhenti → Supabase terjeda beberapa
+hari kemudian. GitHub mengirim email peringatan lebih dulu; kalau terlewat,
+gejala pertamanya adalah aplikasi yang tidak bisa menyimpan.
+
+Kalau repo masuk masa tenang panjang: Actions → Jaga Supabase → pastikan masih
+aktif, atau tekan "Enable workflow".
+
+### Kalau project terlanjur terjeda
+
+Workflow ini tidak bisa membangunkannya — project yang terjeda tidak melayani
+permintaan sama sekali. Buka dashboard Supabase dan tekan **Restore**. Gejalanya
+di sini: job merah dengan HTTP 5xx atau koneksi ditolak.

@@ -1,0 +1,116 @@
+# Menahan project Supabase tetap bangun.
+#
+# Supabase tier gratis **menjeda project yang tidak menerima permintaan** selama
+# beberapa hari berturut-turut. Project yang terjeda tidak menghapus data, tapi
+# aplikasinya berhenti menyimpan — dan yang terlihat tim cuma status "Gagal
+# sync", bukan pesan yang menyebut kata "paused". Workflow ini mengirim satu
+# permintaan tiap hari supaya hitungan itu tidak pernah sampai.
+#
+# ## ⛔ HANYA MEMBACA. Tidak boleh pernah menulis.
+#
+# Ini bukan kehati-hatian umum, ini aturan yang sudah dibayar mahal. Repo ini
+# kehilangan seluruh angka tim karena satu perintah yang dimaksudkan sebagai
+# pembacaan ternyata menulis: `POST` ke PostgREST adalah
+# `INSERT … ON CONFLICT DO UPDATE`, jadi payload yang ikut terkirim menimpa isi
+# yang ada. Lihat docs/SESI-2026-08-27.md.
+#
+# Workflow ini jalan **otomatis, tiap hari, tanpa ada yang menonton**. Kalau ia
+# menulis, ia menulis 365 kali setahun ke dokumen yang dipakai tim, dan tidak
+# ada satu pun log merah yang memberitahu. Godaan yang harus ditolak: "biar
+# pasti dianggap aktif, tulis saja baris heartbeat." Jangan. `GET` sudah
+# menyentuh database — PostgREST menjalankan `select` sungguhan untuk
+# melayaninya, dan itulah yang dihitung sebagai aktivitas.
+#
+# Dijaga `npm run probe:jaga`, yang menolak kata kerja HTTP yang menulis di
+# berkas ini, dengan kontrol negatif.
+#
+# ## ⚠️ Jebakan yang mematikan keepalive ini secara diam-diam
+#
+# **GitHub menonaktifkan workflow terjadwal setelah 60 hari tanpa aktivitas di
+# repo.** Tidak ada commit selama dua bulan → cron ini berhenti jalan →
+# Supabase terjeda beberapa hari kemudian. GitHub mengirim email peringatan
+# sebelum menonaktifkannya; kalau email itu terlewat, gejala pertamanya adalah
+# aplikasi yang tidak bisa menyimpan.
+#
+# Kalau repo ini masuk masa tenang panjang, periksa Actions → Jaga Supabase
+# sesekali, atau tekan "Enable workflow" kalau GitHub sudah mematikannya.
+
+name: Jaga Supabase
+
+on:
+  schedule:
+    # Tiap hari 06:17 UTC (13:17 WIB).
+    #
+    # Harian, bukan mingguan, dan itu disengaja: cron GitHub **tidak dijamin
+    # tepat waktu** — pada jam sibuk ia bisa tertunda atau dilewati sama sekali.
+    # Jadwal yang pas-pasan dengan ambang jeda akan gagal justru pada minggu
+    # yang paling sibuk. Harian memberi margin beberapa hari; ongkosnya satu
+    # permintaan HTTP.
+    #
+    # Menitnya bukan `0` juga disengaja: awal jam adalah saat paling padat di
+    # antrian cron GitHub, dan penundaan paling panjang terjadi di sana.
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Kalau satu jalan tersendat, jangan biarkan jalan berikutnya menumpuk.
+concurrency:
+  group: jaga-supabase
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    name: Ping baca-saja ke Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Baca satu baris
+        env:
+          URL_SUPABASE: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          ANON: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          ID_DOKUMEN: ${{ vars.NEXT_PUBLIC_DOKUMEN_ID }}
+        run: |
+          set -euo pipefail
+
+          # ⚠️ `-z`, bukan mengandalkan default. GitHub Actions meneruskan
+          # repository variable yang BELUM DISET sebagai string kosong, bukan
+          # sebagai variabel yang tidak ada. Tanpa pemeriksaan ini, URL kosong
+          # menghasilkan curl ke "/rest/v1/..." yang gagal dengan pesan yang
+          # tidak menyebut sebabnya sama sekali.
+          if [ -z "$URL_SUPABASE" ] || [ -z "$ANON" ]; then
+            echo "::error::NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY kosong."
+            echo "::error::Set di Settings → Secrets and variables → Actions → Variables. Caranya di docs/CI-CD.md."
+            exit 1
+          fi
+
+          ID="${ID_DOKUMEN:-sos-unit-economics}"
+
+          # GET. Tidak ada -X, tidak ada -d, tidak ada --data. Lihat kepala berkas.
+          kode=$(curl -sS -o respons.json -w '%{http_code}' \
+            "$URL_SUPABASE/rest/v1/unit_economics?id=eq.$ID&select=id,updated_at" \
+            -H "apikey: $ANON" \
+            -H "Authorization: Bearer $ANON")
+
+          echo "HTTP $kode"
+          echo "respons: $(head -c 300 respons.json)"
+
+          if [ "$kode" != "200" ]; then
+            echo "::error::Supabase menjawab HTTP $kode, bukan 200."
+            echo "::error::Kalau 5xx atau koneksi ditolak, project kemungkinan SUDAH terjeda — buka dashboard Supabase dan tekan Restore."
+            exit 1
+          fi
+
+          # ⚠️ HTTP 200 saja TIDAK membuktikan databasenya tersentuh. Proxy atau
+          # halaman perantara juga menjawab 200, dan keepalive yang puas dengan
+          # kode status akan hijau tiap hari sambil membiarkan project terjeda.
+          # Yang membuktikan: barisnya benar-benar kembali.
+          if ! grep -q '"id"' respons.json; then
+            echo "::error::HTTP 200 tapi tidak ada baris yang kembali."
+            echo "::error::Berarti permintaannya tidak sampai ke tabelnya — bisa kebijakan RLS berubah, bisa id dokumen tidak lagi cocok."
+            echo "::error::Lihat supabase/migrations/0001_awal.sql dan docs/INFRASTRUKTUR.md."
+            exit 1
+          fi
+
+          echo "Project bangun, baris '$ID' terbaca. Tidak ada yang ditulis."
