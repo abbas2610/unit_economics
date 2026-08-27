@@ -73,7 +73,21 @@ jobs:
       # angka yang dibawa ke rapat — ia jalan dalam sepersekian detik justru
       # karena `src/bersama` dan `src/contexts/*/domain` bebas framework dan
       # bebas jaringan (ditegakkan probe:arsitektur).
+      #
+      # ⚠️ Kredensial diberikan di sini KHUSUS untuk `probe:rls`, yang menembak
+      # project Supabase sungguhan. Tanpa keduanya probe itu melaporkan dirinya
+      # DILEWATI di lokal — tapi di CI ia menolak dilewati dan gagal, karena
+      # probe yang bisa melewati dirinya sendiri di CI tidak menjaga apa pun.
+      #
+      # `CI` dibaca probe-rls untuk membedakan kedua perilaku itu; GitHub Actions
+      # memang sudah menyetelnya, dan ditulis ulang di sini supaya keterikatannya
+      # terlihat dari berkas ini.
       - name: Probe data
+        env:
+          CI: "true"
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_DOKUMEN_ID: ${{ vars.NEXT_PUBLIC_DOKUMEN_ID }}
         run: npm run probe:data
 
   # ────────────────────────────────────────────────────────── 2. bundel ──

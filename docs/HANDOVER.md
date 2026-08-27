@@ -27,7 +27,7 @@ tautologi: yang kedua lulus apa pun yang dilakukan kodenya.
 | Migrasi dokumen dari bentuk lama | ✅ jadi, 57 pemeriksaan |
 | Design token, tema gelap, palet cetak | ✅ jadi, berprobe |
 | Harness probe & CI | ✅ jadi, terbukti jalan lokal |
-| Sinkronisasi Supabase | ⚠️ kode jadi. Realtime ✅ menyala. **RLS belum dipastikan** — lihat di bawah |
+| Sinkronisasi Supabase | ✅ jadi. Realtime menyala, RLS terpasang & **terbukti lewat `probe:rls`** |
 | Deploy ke abbas.co.id/perfume | ⛔ workflow ditulis, **belum pernah dijalankan** |
 | Autentikasi | ⛔ tidak ada, dan itu keputusan — lihat di bawah |
 
@@ -35,25 +35,19 @@ tautologi: yang kedua lulus apa pun yang dilakukan kodenya.
 
 Berurutan, dan yang pertama paling penting.
 
-### 1. Pastikan RLS di Supabase
+### 1. ✅ RLS di Supabase — SELESAI
 
-[`supabase/migrations/0001_awal.sql`](../supabase/migrations/0001_awal.sql)
-menuliskan bentuk yang **seharusnya**. Tabelnya sudah ada — dibuat lewat
-dashboard saat builder HTML ditulis — dan migrasinya ditulis **idempoten**
-justru untuk keadaan itu: aman dijalankan utuh berkali-kali.
+[`supabase/migrations/0001_awal.sql`](../supabase/migrations/0001_awal.sql) sudah
+dijalankan, dan hasilnya dibuktikan **dua kali**: lewat query pemeriksa di akhir
+migrasi, dan lewat `npm run probe:rls` yang benar-benar meminta datanya dari
+project sungguhan lalu mencoba melanggarnya. Dokumen tim utuh — `updated_at`
+masih 11 Agustus 2026.
 
-Periksa keadaan sekarang di SQL Editor:
+Keadaan sekarang: RLS menyala, tiga kebijakan, tidak satu pun berpredikat `true`,
+tidak satu pun untuk role `{public}`, dan tidak ada kebijakan `delete`.
 
-```sql
-select relname, relrowsecurity from pg_class where relname = 'unit_economics';
-select policyname, cmd, qual, with_check from pg_policies where tablename = 'unit_economics';
-```
-
-Jalankan migrasinya **utuh** — ia idempoten, jadi aman dijalankan berkali-kali
-terhadap database yang sudah berisi data. Baca peringatan keamanannya lebih dulu,
-dan jangan jalankan setengah berkas.
-
-Migrasi itu diakhiri query pemeriksa. Yang harus terlihat:
+Yang perlu diulang hanya kalau ada yang menyentuh kebijakan lewat dashboard.
+Jalankan migrasinya **utuh** (ia idempoten), lalu baca pemeriksa di akhirnya:
 
 | Kolom | Harus | |
 | --- | --- | --- |

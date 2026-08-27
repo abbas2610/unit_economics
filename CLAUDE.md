@@ -117,6 +117,7 @@ jadi menambah berkas `probe-*.mjs` otomatis menambahkannya ke CI.
 npm run probe:daftar   # apa saja yang ada — jangan percaya angka di dokumen ini
 npm run probe:data     # tanpa server, hitungan detik
 npm run probe:layar    # butuh `npm run serve:build` lebih dulu
+npm run probe:rls      # menembak Supabase sungguhan; butuh .env.local
 ```
 
 ⚠️ Helper yang dipakai bersama probe **harus berawalan `lib-`**. Berkas bernama
