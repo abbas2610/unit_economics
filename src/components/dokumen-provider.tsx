@@ -78,6 +78,20 @@ export function DokumenProvider({ children }: { children: ReactNode }) {
      angka contoh. */
   const siap = useRef(false);
 
+  /**
+   * Sudah ada yang diketik sebelum muatan awal mendarat?
+   *
+   * ⚠️ Tanpa ini, mengetik pada detik pertama halaman dibuka akan HILANG:
+   * pemuatan berjalan asinkron, dan hasilnya memanggil `setDok()` yang menimpa
+   * apa pun yang sudah disunting sementara ia menunggu. Yang terlihat di layar
+   * cuma angka yang melompat kembali sendiri — tanpa error, dan tanpa cara
+   * menebak apa yang barusan terjadi.
+   *
+   * Kalau ada yang sudah mengetik, ketikannya yang menang. Ia menyatakan niat;
+   * muatan awal cuma titik mulai.
+   */
+  const sudahDisunting = useRef(false);
+
   const beriKabar = useCallback((pesan: string) => {
     setKabar(pesan);
     setTimeout(() => setKabar((k) => (k === pesan ? null : k)), 1600);
@@ -91,7 +105,7 @@ export function DokumenProvider({ children }: { children: ReactNode }) {
       const lokal = muatLokal();
 
       if (!awanTersedia()) {
-        if (!batal && lokal) setDok(lokal);
+        if (!batal && lokal && !sudahDisunting.current) setDok(lokal);
         siap.current = true;
         setStatus("lokal");
         return;
@@ -101,7 +115,7 @@ export function DokumenProvider({ children }: { children: ReactNode }) {
       if (batal) return;
 
       if (hasil.jenis === "ada") {
-        setDok(hasil.dokumen);
+        if (!sudahDisunting.current) setDok(hasil.dokumen);
         stempelKita.current = hasil.diperbaruiPada;
         setStatus("tersinkron");
       } else if (hasil.jenis === "kosong") {
@@ -119,7 +133,7 @@ export function DokumenProvider({ children }: { children: ReactNode }) {
       } else {
         /* Gagal atau mati: pakai cadangan lokal, dan JANGAN menulis balik.
            Gangguan jaringan sesaat tidak boleh menimpa dokumen tim. */
-        if (lokal) setDok(lokal);
+        if (lokal && !sudahDisunting.current) setDok(lokal);
         setStatus(hasil.jenis === "mati" ? "lokal" : "gagal");
       }
       siap.current = true;
@@ -169,6 +183,7 @@ export function DokumenProvider({ children }: { children: ReactNode }) {
 
   const ubah = useCallback(
     (fn: (d: Dokumen) => Dokumen) => {
+      sudahDisunting.current = true;
       setDok((lama) => {
         const baru = fn(lama);
         jadwalkanSimpan(baru);

@@ -122,6 +122,19 @@ cek("tidak ada galat JavaScript", galatKonsol.length === 0, galatKonsol.slice(0,
    wifi yang tidak bisa diandalkan, dan halaman yang menolak menghitung karena
    Supabase tidak terjangkau tidak berguna bagi siapa pun. */
 {
+  /* ⚠️ DITUNGGU, bukan dibaca sekali. "Memuat data tim…" adalah keadaan
+     sementara, dan `networkidle` bisa terpenuhi sebelum penolakan permintaan
+     sempat diproses aplikasinya. Membacanya sekali menghasilkan probe yang
+     kadang merah — dan probe yang kadang merah lebih cepat diabaikan orang
+     daripada probe yang tidak ada. Polling, jangan `sleep`. */
+  await hal
+    .waitForFunction(
+      () => !/Memuat/i.test(document.querySelector("header [role=status]")?.textContent ?? ""),
+      undefined,
+      { timeout: 10_000 },
+    )
+    .catch(() => {});
+
   const status = (await hal.locator("header [role=status]").first().textContent()) ?? "";
   cek(
     "awan terputus → aplikasi tetap jalan dan MENGATAKANNYA",
@@ -263,11 +276,26 @@ console.log("\n=== 5. Mengetik di satu tab menggerakkan angka di tab lain ===");
 {
   await hal.goto(BASE + "/index.html", { waitUntil: "networkidle" });
 
+  /* ⚠️ Tunggu muatan awal MENDARAT sebelum mengetik. Aplikasi memuat dokumen
+     secara asinkron, dan mengetik sementara ia menunggu adalah kondisi balapan
+     yang sungguhan — dijaga `sudahDisunting` di dokumen-provider. Yang diuji di
+     bagian ini bukan balapan itu, jadi ia dihindari alih-alih ditumpangi. */
+  const tungguSiap = () =>
+    hal
+      .waitForFunction(
+        () => !/Memuat/i.test(document.querySelector("header [role=status]")?.textContent ?? ""),
+        undefined,
+        { timeout: 10_000 },
+      )
+      .catch(() => {});
+  await tungguSiap();
+
   /* Baca COGS awal lewat tab Unit Economics, ubah kurs di Asumsi Dasar, lalu
      baca lagi. Ini menguji rantai yang paling mudah putus tanpa gejala:
      dokumen dibagi lintas rute oleh satu provider di layout. */
   const bacaCogs = async () => {
     await hal.goto(BASE + "/unit-economics/index.html", { waitUntil: "networkidle" });
+    await tungguSiap();
     const baris = hal.locator("text=Total COGS / botol").first();
     const nilai = await baris.locator("xpath=following-sibling::*[1]").textContent();
     return nilai ?? "";
