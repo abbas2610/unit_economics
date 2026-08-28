@@ -49,9 +49,30 @@ const angkaDari = (teks) => Number(String(teks).replace(/[^\d-]/g, "")) || 0;
 
 const peramban = await chromium.launch();
 const konteks = await peramban.newContext({ viewport: { width: 1280, height: 1000 } });
-await konteks.route("**://*.supabase.co/**", (rute) => rute.abort());
+/* Regex, sama seperti probe-builder. Pola glob sempat dipakai di sini dan
+   pemblokirannya memang bekerja — tapi menyamakan bentuknya dengan probe yang
+   sudah terbukti menghilangkan satu hal yang perlu dipikirkan ulang tiap kali. */
+await konteks.route(/supabase\.co/, (rute) => rute.abort("failed"));
 
 const hal = await konteks.newPage();
+
+/**
+ * Tunggu muatan awal MENDARAT sebelum menyentuh apa pun.
+ *
+ * Aplikasi memuat dokumen secara asinkron. Mengetik sementara ia menunggu adalah
+ * kondisi balapan sungguhan — dijaga `sudahDisunting` di dokumen-provider — dan
+ * yang diuji di sini bukan balapan itu, jadi ia dihindari alih-alih ditumpangi.
+ * Tanpa ini, klik "Pakai supplier ini" bisa tertimpa muatan awal dan probe merah
+ * pada perilaku yang benar. Itu persis yang terjadi pada jalan CI pertama.
+ */
+const tungguSiap = () =>
+  hal
+    .waitForFunction(
+      () => !/Memuat/i.test(document.querySelector("header [role=status]")?.textContent ?? ""),
+      undefined,
+      { timeout: 10_000 },
+    )
+    .catch(() => {});
 
 /** Ketik ke kotak isian ber-aria-label, lalu lepas fokus supaya nilainya ditulis ulang rapi. */
 async function isi(label, nilai) {
@@ -66,9 +87,23 @@ async function isi(label, nilai) {
 console.log("\n=== 0. Awan diputus (pembuktian, bukan asumsi) ===");
 
 await hal.goto(`${BASE}/supplier-kecil/index.html`, { waitUntil: "networkidle" });
+await tungguSiap();
 {
-  const status = (await hal.locator("header").first().innerText()).toLowerCase();
-  cek("topbar berbunyi 'mode lokal' — pemutusan terbukti", status.includes("mode lokal"), status.slice(0, 80));
+  /* ⚠️ DUA status yang sah, dan menerima cuma satu membuat probe ini merah
+     justru saat pemutusannya bekerja — itu yang terjadi pada jalan CI pertama.
+     Bundle CI MEMBAWA kredensial, jadi permintaan yang diputus berbunyi
+     "Gagal sync"; bundle lokal tanpa kredensial berbunyi "Mode lokal".
+
+     Yang menjadi PENGAMAN sesungguhnya bukan keduanya, melainkan assertion di
+     bawahnya: kalau pemutusan tidak berlaku, statusnya "Tersinkron" dan probe
+     ini sedang mengetik ke dokumen tim yang sungguhan. */
+  const status = (await hal.locator("header [role=status]").first().textContent()) ?? "";
+  cek("status = mode lokal ATAU gagal sync", /lokal|Gagal sync/i.test(status), JSON.stringify(status));
+  cek(
+    "status BUKAN 'Tersinkron' — pemutusan terbukti berlaku",
+    !/Tersinkron/i.test(status),
+    "kalau ini gagal, probe sedang menyentuh data tim",
+  );
 }
 kontrol(
   "[kontrol negatif] halaman memang termuat — kalau kosong, seluruh probe ini hampa",
@@ -142,6 +177,7 @@ console.log("\n=== 3. Supplier baru bisa dipakai dari tab-nya sendiri ===");
 
 {
   await hal.goto(`${BASE}/supplier-besar/index.html`, { waitUntil: "networkidle" });
+  await tungguSiap();
   await hal.getByRole("button", { name: /Tambah supplier botol besar/i }).click();
   await hal.waitForTimeout(150);
 
@@ -160,27 +196,21 @@ console.log("\n=== 3. Supplier baru bisa dipakai dari tab-nya sendiri ===");
     (await hal.locator("section.card").last().locator("text=dipakai").count()) > 0,
   );
 
-  /* Dan pilihannya benar-benar sampai ke tab 4 — bukan cuma badge di layar ini. */
+  /* Dan pilihannya benar-benar sampai ke tab 4 — bukan cuma badge di layar ini.
+     Itu inti bug-nya: badge yang benar sementara Initial Investment tetap
+     memakai supplier lama adalah persis gejala yang dilaporkan. */
   await hal.goto(`${BASE}/investasi/index.html`, { waitUntil: "networkidle" });
-  const terpilih = await hal.locator("select").nth(1).inputValue();
-  const namaTerpilih = await hal.locator("select").nth(1).locator(`option[value="${terpilih}"]`).innerText();
-  cek(
-    "Initial Investment ikut memakai supplier baru",
-    namaTerpilih.trim() === "Supplier Baru",
-    namaTerpilih.trim(),
-  );
+  await tungguSiap();
+  const pilih = hal.locator("select").nth(1);
+  const namaTerpilih = async () => {
+    const v = await pilih.inputValue();
+    return (await pilih.locator(`option[value="${v}"]`).innerText()).trim();
+  };
+  const nama = await namaTerpilih();
+  cek("Initial Investment ikut memakai supplier baru", nama === "Supplier Baru", nama);
+
+  kontrol("[kontrol negatif] tab 4 TIDAK boleh masih menunjuk supplier lama", nama === "Vendor Lokal A");
 }
-kontrol(
-  "[kontrol negatif] tab 4 TIDAK boleh masih menunjuk supplier lama",
-  await hal
-    .locator("select")
-    .nth(1)
-    .inputValue()
-    .then(async (v) =>
-      (await hal.locator("select").nth(1).locator(`option[value="${v}"]`).innerText()).trim() ===
-      "Vendor Lokal A",
-    ),
-);
 
 await peramban.close();
 
