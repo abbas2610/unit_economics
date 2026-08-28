@@ -81,7 +81,7 @@ export function UnitEconomicsLayar() {
         <Kpi
           label="Proyeksi Gross Profit Batch"
           nilai={<Nilai nilai={profitBatch} className="text-kpi" />}
-          keterangan={`${pcs(kecil.qtyBatch)} kecil + ${pcs(besar.qtyBatch)} besar, kalau seluruhnya terjual`}
+          keterangan={`${pcs(kecil.qtyProduksi)} kecil + ${pcs(besar.qtyProduksi)} besar, kalau seluruhnya terjual`}
         />
         <Kpi
           label="Break-even (unit terjual)"
@@ -169,10 +169,22 @@ function KartuSKU({
         <BarisRincian label={`Royalti Miranti (${persen(dok.asumsi.mirantiPct)} dari harga jual)`}>
           {rupiah(r.royalti)}
         </BarisRincian>
+        {/* Dua baris, bukan satu. Kelebihan MOQ dulu tidak muncul di mana pun
+            walau toggle-nya menyala, padahal jumlahnya bisa sebanding molding —
+            dan ia uang yang sama nyatanya. */}
         {dok.opsi.amortisasiMolding ? (
-          <BarisRincian label={`Amortisasi molding (÷ ${pcs(r.qtyBatch)})`}>
-            {rupiah(r.amortisasi)}
-          </BarisRincian>
+          <>
+            <BarisRincian label={`Amortisasi molding (÷ ${pcs(r.qtyProduksi)})`}>
+              {rupiah(r.amortisasiMolding)}
+            </BarisRincian>
+            {r.kelebihanBotol > 0 ? (
+              <BarisRincian
+                label={`Kelebihan MOQ ${pcs(r.kelebihanBotol)} (÷ ${pcs(r.qtyProduksi)})`}
+              >
+                {rupiah(r.amortisasiKelebihan)}
+              </BarisRincian>
+            ) : null}
+          </>
         ) : null}
 
         <BarisRincian label="Total COGS / botol" jenis="subtotal">

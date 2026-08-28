@@ -317,7 +317,7 @@ export function SensitivitasLayar() {
             <Catatan>
               ⚠️ Hitungan ini mengasumsikan botol kecil dan besar terjual{" "}
               <strong>sama banyak</strong> — bukan mengikuti komposisi batch, yang saat ini{" "}
-              {pcs(kecil.qtyBatch)} kecil berbanding {pcs(besar.qtyBatch)} besar. Asumsinya berbeda
+              {pcs(kecil.qtyProduksi)} kecil berbanding {pcs(besar.qtyProduksi)} besar. Asumsinya berbeda
               dari yang dipakai break-even, jadi kedua angka tidak bisa langsung disandingkan.
             </Catatan>
           </div>

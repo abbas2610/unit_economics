@@ -48,8 +48,30 @@ export type BiayaSatuan = {
   perizinan: number;
   /** Cap + aksesoris. */
   aksesoris: number;
-  /** botol + perizinan + aksesoris. Yang masuk COGS sebagai "biaya botol". */
+  /**
+   * botol + perizinan + aksesoris. **TANPA freight.**
+   *
+   * ⚠️ Ini BUKAN biaya botol per unit yang dipakai COGS — untuk itu ada
+   * `totalLengkap`. Namanya tetap `total` karena ia memang total dari tiga
+   * baris di atasnya, tapi memakainya sebagai "biaya botol per unit" adalah
+   * kesalahan yang sudah pernah terjadi di TIGA tempat sekaligus: kartu
+   * supplier, baris terakhir tabel perbandingan, dan nilai kelebihan stok di
+   * Initial Investment. Ketiganya melaporkan angka yang terlalu rendah tanpa
+   * satu pun error.
+   */
   total: number;
+  /** Freight per botol menurut supplier ini. `0` kalau freight-nya dimatikan. */
+  freight: number;
+  /**
+   * total + freight. **Ini yang setara dengan komponen botol di COGS.**
+   *
+   * Freight ikut karena `unitEconomics()` memasukkannya ke `botolPacking`.
+   * Membandingkan supplier tanpa freight bisa menobatkan vendor yang COGS-nya
+   * JUSTRU lebih mahal: botol yang lebih murah tapi lebih gemuk membayar lebih
+   * banyak per CBM. Dijaga `probe:hitung` dengan kontrol negatif yang membalik
+   * pemenangnya.
+   */
+  totalLengkap: number;
 };
 
 export function biayaSatuan(sup: Supplier, kurs: number, perizinanPct: number): BiayaSatuan {
@@ -57,7 +79,9 @@ export function biayaSatuan(sup: Supplier, kurs: number, perizinanPct: number): 
   const perizinan = botol * ((perizinanPct || 0) / 100);
   const aksesoris =
     keIDR(sup.satuan.aksesoris, sup.mataUang, kurs) + keIDR(sup.satuan.cap, sup.mataUang, kurs);
-  return { botol, perizinan, aksesoris, total: botol + perizinan + aksesoris };
+  const total = botol + perizinan + aksesoris;
+  const freight = freightPerBotol(sup);
+  return { botol, perizinan, aksesoris, total, freight, totalLengkap: total + freight };
 }
 
 /** Total molding, IDR. Sekali bayar. */
@@ -78,8 +102,10 @@ export function freightPerBotol(sup: Supplier): number {
 }
 
 export type InvestasiSupplier = {
-  /** Qty yang BENAR-BENAR dibeli: MOQ atau qty batch, mana yang lebih besar. */
+  /** Qty yang BENAR-BENAR dibayar: MOQ atau qty diminta, mana yang lebih besar. */
   qty: number;
+  /** Apakah MOQ yang menentukan `qty` — bukan jumlah yang diminta. */
+  moqMengikat: boolean;
   molding: number;
   botol: number;
   aksesoris: number;
@@ -90,30 +116,41 @@ export type InvestasiSupplier = {
 };
 
 /**
- * Total yang dibayar ke satu supplier untuk satu batch.
+ * Total yang dibayar ke satu supplier untuk `qtyDiminta` botol.
  *
- * ⚠️ `qty = max(MOQ, qtyBatch)`. MOQ 10.000 pcs untuk batch 2.125 pcs berarti
- * **7.875 botol dibayar dan disimpan**, dan modal tertahan itu masuk ke Initial
- * Investment walau tidak satu pun botolnya terjual di batch ini. Halaman
- * Initial Investment menampilkannya sebagai baris "kelebihan stok" tersendiri,
- * karena angka yang cuma terlihat sebagai total supplier yang membengkak akan
- * dikira harga yang mahal, bukan MOQ yang tinggi.
+ * ⚠️ `qty = max(MOQ, qtyDiminta)`. **MOQ adalah lantai, bukan pesanan.** MOQ 100
+ * pcs sementara yang diminta 8.500 berarti yang dibayar 8.500 — angka 100 tidak
+ * ikut menghitung apa pun. Kebalikannya juga: MOQ 10.000 untuk 8.500 yang
+ * diminta berarti **1.500 botol dibayar dan disimpan**, dan modal tertahan itu
+ * masuk Initial Investment walau tidak satu pun botolnya terisi di batch ini.
+ *
+ * `qtyDiminta` datang dari `qtyDiminta()` di `unit-economics/aplikasi`, yang
+ * membaca `dok.pembelian` — bukan dari kapasitas cairan langsung. Keduanya beda
+ * sejak tim bisa memodelkan pembelian sampel (mis. beli 100 botol saja).
+ *
+ * `moqMengikat` dikembalikan supaya layar bisa MENYEBUTNYA. MOQ yang mengikat
+ * dan MOQ yang tidak menghasilkan tabel yang terlihat sama persis, dan pembaca
+ * yang mengalikan angka MOQ di kepalanya akan mendapat hasil yang tidak masuk
+ * akal — itu keluhan nyata yang melahirkan field ini.
  */
 export function investasiSupplier(
   sup: Supplier,
   kurs: number,
   perizinanPct: number,
-  qtyBatch: number,
+  qtyDiminta: number,
 ): InvestasiSupplier {
-  const qty = Math.max(sup.moq || 0, qtyBatch || 0);
+  const moq = sup.moq || 0;
+  const diminta = qtyDiminta || 0;
+  const qty = Math.max(moq, diminta);
   const satuan = biayaSatuan(sup, kurs, perizinanPct);
   const molding = totalMolding(sup, kurs);
   const botol = satuan.botol * qty;
   const aksesoris = satuan.aksesoris * qty;
   const perizinan = satuan.perizinan * qty;
-  const freight = freightPerBotol(sup) * qty;
+  const freight = satuan.freight * qty;
   return {
     qty,
+    moqMengikat: moq > diminta,
     molding,
     botol,
     aksesoris,

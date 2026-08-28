@@ -11,7 +11,7 @@
  * boleh berbeda dari volume cairan yang benar-benar ada — yang berarti membeli
  * botol untuk parfum yang tidak akan pernah jadi.
  */
-import { pcs, persen, rupiah, rupiahRingkas } from "@/bersama/format";
+import { liter, pcs, persen, rupiah, rupiahRingkas } from "@/bersama/format";
 import { boxPerBotol } from "@/contexts/asumsi/domain/asumsi";
 import { initialInvestment } from "@/contexts/investasi/aplikasi/investasi";
 import { useDokumen } from "@/components/dokumen-provider";
@@ -96,13 +96,13 @@ export function InvestasiLayar() {
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Bidang
             label="Qty produksi botol kecil (batch)"
-            petunjuk="(dari estimasi hasil produksi di Asumsi Dasar)"
+            petunjuk={`(cairan cukup ${pcs(inv.kapasitasKecil)}, dibeli ${pcs(inv.invKecil.qty)})`}
           >
             <NilaiTurunan akhiran="pcs">{pcs(inv.qtyKecil).replace(" pcs", "")}</NilaiTurunan>
           </Bidang>
           <Bidang
             label="Qty produksi botol besar (batch)"
-            petunjuk="(dari estimasi hasil produksi di Asumsi Dasar)"
+            petunjuk={`(cairan cukup ${pcs(inv.kapasitasBesar)}, dibeli ${pcs(inv.invBesar.qty)})`}
           >
             <NilaiTurunan akhiran="pcs">{pcs(inv.qtyBesar).replace(" pcs", "")}</NilaiTurunan>
           </Bidang>
@@ -260,11 +260,11 @@ export function InvestasiLayar() {
       <div className="mt-4">
         <Kartu>
           <JudulBlok
-            judul="Catatan MOQ & Kelebihan Stok"
-            sub="MOQ supplier sering melebihi kebutuhan batch. Botol lebihnya tetap dibayar sekarang dan jadi modal tertahan di gudang."
+            judul="Catatan MOQ, Kelebihan Stok & Sisa Cairan"
+            sub="Dua arah yang berlawanan. MOQ yang melebihi pesanan meninggalkan botol tanpa isi; pesanan yang lebih kecil dari kapasitas meninggalkan cairan tanpa botol. Keduanya uang yang sudah keluar tanpa barang yang bisa dijual."
           />
           <Rincian>
-            <BarisRincian label={`Botol kecil dibeli (MOQ vs batch ${pcs(inv.qtyKecil)})`}>
+            <BarisRincian label={`Botol kecil dibeli (terisi ${pcs(inv.qtyKecil)})`}>
               {pcs(inv.invKecil.qty)}
             </BarisRincian>
             <BarisRincian label="→ Kelebihan stok botol kecil">
@@ -276,7 +276,17 @@ export function InvestasiLayar() {
                 <span className="text-naik">tidak ada</span>
               )}
             </BarisRincian>
-            <BarisRincian label={`Botol besar dibeli (MOQ vs batch ${pcs(inv.qtyBesar)})`}>
+            <BarisRincian label="→ Cairan botol kecil tanpa botol">
+              {inv.mlTakTerbotolkanKecil > 0 ? (
+                <span className="text-warning-fg">
+                  {liter(inv.mlTakTerbotolkanKecil / 1000)} (setara{" "}
+                  {pcs(inv.kapasitasKecil - inv.qtyKecil)})
+                </span>
+              ) : (
+                <span className="text-naik">tidak ada</span>
+              )}
+            </BarisRincian>
+            <BarisRincian label={`Botol besar dibeli (terisi ${pcs(inv.qtyBesar)})`}>
               {pcs(inv.invBesar.qty)}
             </BarisRincian>
             <BarisRincian label="→ Kelebihan stok botol besar">
@@ -288,12 +298,23 @@ export function InvestasiLayar() {
                 <span className="text-naik">tidak ada</span>
               )}
             </BarisRincian>
+            <BarisRincian label="→ Cairan botol besar tanpa botol">
+              {inv.mlTakTerbotolkanBesar > 0 ? (
+                <span className="text-warning-fg">
+                  {liter(inv.mlTakTerbotolkanBesar / 1000)} (setara{" "}
+                  {pcs(inv.kapasitasBesar - inv.qtyBesar)})
+                </span>
+              ) : (
+                <span className="text-naik">tidak ada</span>
+              )}
+            </BarisRincian>
           </Rincian>
           <div className="mt-4">
             <Catatan>
-              Nilai kelebihan stok dihitung dengan biaya botol <strong>per unit</strong>, bukan
-              termasuk molding: molding sudah dibayar penuh berapa pun qty-nya, jadi
-              memasukkannya akan melebih-lebihkan modal yang benar-benar tertahan.
+              Nilai kelebihan stok memakai biaya botol per unit <strong>termasuk freight</strong> —
+              botol yang terpaksa dibeli itu benar-benar ikut dikapalkan dan ikut dibayar per CBM.
+              Molding tetap dikecualikan: ia dibayar penuh berapa pun qty-nya, jadi memasukkannya
+              akan melebih-lebihkan modal yang tertahan sebagai barang di gudang.
             </Catatan>
           </div>
         </Kartu>

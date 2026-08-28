@@ -39,6 +39,12 @@ kali. Builder lama menyimpannya *dan* menghitungnya ulang; dua sumber untuk satu
 angka selalu berbeda pada akhirnya, dan yang tersimpan menang di jalur kode yang
 lupa menghitung ulang.
 
+> ⚠️ **Angka di atas adalah KAPASITAS CAIRAN, bukan jumlah botol yang dibeli.**
+> Keduanya sama hanya selama tim tidak memesan jumlah lain. Sejak `dok.pembelian`
+> ada, "berapa botol yang cairannya cukup" dan "berapa botol yang dipesan" adalah
+> dua pertanyaan berbeda — lihat bagian 4. Yang dipakai `unitEconomics()` dan
+> penimbangan gross profit adalah **qty produksi**, bukan angka di bagian ini.
+
 ---
 
 ## 2. COGS per botol
@@ -128,7 +134,7 @@ amortisasi  = total molding ÷ qty batch      (hanya kalau dinyalakan)
 
 ---
 
-## 3. Amortisasi molding — dan kenapa mati secara default
+## 3. Amortisasi molding & kelebihan MOQ — dan kenapa mati secara default
 
 Molding adalah **capex**, dan ia sudah dihitung penuh di Initial Investment.
 Memasukkannya lagi ke COGS per botol berarti menghitungnya dua kali kalau kedua
@@ -138,6 +144,23 @@ yang sama.
 Dinyalakan saat yang ditanya "berapa biaya per unit sesungguhnya **untuk batch
 ini**". Jawabannya berbeda jauh: molding Rp42,7 juta dibagi 8.500 botol adalah
 Rp5.022 per botol — hampir 8% dari COGS.
+
+**DUA komponen diserap, bukan satu:**
+
+```
+amortisasi = molding ÷ qty produksi
+           + (botol kelebihan MOQ × biaya botol per unit lengkap) ÷ qty produksi
+```
+
+> ⚠️ Yang kedua sempat hilang, dan hilangnya diam. Toggle ini dulu hanya membagi
+> molding, sementara botol yang terpaksa dibeli karena MOQ adalah uang yang sama
+> nyatanya — dan jumlahnya sebanding. Pada penawaran Gelas Bening (A): molding
+> Rp45,2 juta, kelebihan MOQ Rp33,4 juta. Toggle yang menyala melaporkan COGS
+> Rp71.821 (margin 64,09%) padahal yang benar Rp75.750 (margin 62,13%) — selisih
+> 4,6 poin margin, tanpa satu pun error. Dijaga `probe:hitung` bagian 7 dan
+> `probe:pembelian` bagian 5, keduanya dengan kontrol negatif.
+
+Kelebihan MOQ dinilai **termasuk freight** — botol itu benar-benar dikapalkan.
 
 Yang membuatnya rumit: molding dipakai lintas batch. Kalau cetakan yang sama
 dipakai tiga tahun, membebankan seluruhnya ke batch pertama membuat batch pertama
@@ -158,22 +181,70 @@ Category 2 — Marketing
   offline + online + lainnya
 ```
 
+### Empat qty yang berbeda, dan menyatukannya melahirkan empat bug
+
+Ini bagian yang paling sering salah dibaca, jadi ditulis penuh:
+
+```
+kapasitas cairan = berapa botol yang CAIRANNYA cukup       (dari campuran)
+qty diminta      = berapa botol yang DIPESAN               (dok.pembelian, null = ikut kapasitas)
+qty dibeli       = max(MOQ, qty diminta)                   (yang DIBAYAR ke supplier)
+qty produksi     = min(kapasitas cairan, qty dibeli)       (botol yang JADI)
+```
+
+**`qty produksi` yang mengalikan OEM, box, fulfillment, dan menimbang gross
+profit. `qty dibeli` yang ditagih supplier.** Keduanya berbeda begitu MOQ atau
+pembelian sampel ikut bermain.
+
+> ⚠️ **MOQ adalah LANTAI, bukan pesanan.** MOQ 100 pcs pada kebutuhan 8.500
+> berarti yang dibayar 8.500 — angka 100 tidak ikut menghitung apa pun. Ini
+> pernah dilaporkan sebagai bug ("harga botol $0,5 × MOQ 100 masa hasilnya
+> Rp84 juta?"): angkanya benar, tabelnya yang menonjolkan MOQ dan menyembunyikan
+> qty yang dipakai. Sekarang baris pertama tabel adalah **Qty dibeli**, dan MOQ
+> turun jadi keterangan yang menyebut apakah ia mengikat.
+
 Investasi per supplier:
 
 ```
-qty dibeli = max(MOQ, qty batch)
-total      = molding + (botol + aksesoris + perizinan + freight) × qty dibeli
+total = molding + (botol + aksesoris + perizinan + freight) × qty dibeli
 ```
 
-> ⚠️ **MOQ sering melebihi kebutuhan batch.** MOQ 10.000 untuk batch 1.275 botol
-> besar berarti 8.725 botol dibayar sekarang dan disimpan. Modal tertahan itu
-> masuk ke Initial Investment walau tidak satu pun botolnya terjual di batch ini —
-> dan kalau ia cuma terlihat sebagai total supplier yang membengkak, ia akan
-> dikira harga yang mahal alih-alih MOQ yang tinggi. Halaman Initial Investment
-> menampilkannya sebagai baris tersendiri.
+> ⚠️ **MOQ yang melebihi pesanan meninggalkan botol tanpa isi.** MOQ 10.000 untuk
+> 8.500 yang diproduksi berarti 1.500 botol dibayar sekarang dan disimpan. Modal
+> tertahan itu masuk Initial Investment walau tidak satu pun botolnya terjual di
+> batch ini — dan kalau ia cuma terlihat sebagai total supplier yang membengkak,
+> ia akan dikira harga yang mahal alih-alih MOQ yang tinggi.
 
-Nilai kelebihan stok memakai **biaya botol per unit**, bukan termasuk molding:
-molding sudah dibayar penuh berapa pun qty-nya.
+> ⚠️ **Arah sebaliknya juga ada, dan ia baru.** Memesan 100 botol sementara
+> cairannya cukup untuk 8.500 meninggalkan **126 L cairan tanpa botol** — biang,
+> alkohol, dan OEM-nya sudah dibayar tanpa jadi barang yang bisa dijual.
+> Ditampilkan sebagai baris tersendiri di Initial Investment.
+
+Nilai kelebihan stok memakai **biaya botol per unit termasuk freight**, dan
+**tanpa** molding:
+
+- **Freight ikut** karena botol kelebihan itu benar-benar dikapalkan dan
+  benar-benar dibayar per CBM. Mengecualikannya melaporkan modal tertahan 9,6%
+  lebih rendah dari yang sesungguhnya — Rp30,2 juta untuk Rp33,4 juta yang
+  dibayar. Itu bug nyata yang pernah lolos di sini.
+- **Molding dikecualikan** karena ia dibayar penuh berapa pun qty-nya, jadi
+  memasukkannya melebih-lebihkan modal yang tertahan sebagai barang di gudang.
+
+### Membandingkan supplier: total investasi TIDAK setara
+
+Dua supplier ber-MOQ berbeda membelanjakan uang untuk jumlah botol yang berbeda.
+Menobatkan yang totalnya lebih kecil sebagai "termurah" adalah cara tercepat
+memilih vendor yang salah — dan supplier yang seluruh harganya masih Rp0 selalu
+menang di baris itu.
+
+Yang setara: **biaya per botol terpakai** = total investasi ÷ botol yang terisi.
+Ia memasukkan molding dan botol kelebihan MOQ sebagai beban, jadi ia menjawab
+pertanyaan yang sebenarnya ditanyakan.
+
+Baris **biaya botol per unit** memakai `satuan.totalLengkap` — **termasuk
+freight**. Tanpa freight ia bisa menobatkan vendor yang COGS-nya justru lebih
+mahal: botol lebih murah tapi lebih gemuk membayar jauh lebih banyak per CBM.
+`probe:pembelian` bagian 4 mengunci ini dengan kasus yang membalik pemenangnya.
 
 ### Pajak tidak dijumlahkan ulang
 

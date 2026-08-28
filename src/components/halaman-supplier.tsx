@@ -24,7 +24,9 @@ import {
 } from "@/contexts/supplier/domain/supplier";
 import type { MataUang, Supplier } from "@/contexts/supplier/domain/supplier";
 import { idBerikutnya } from "@/contexts/dokumen/domain/migrasi";
-import { qtyBatch } from "@/contexts/unit-economics/aplikasi/unit-economics";
+import { kapasitasCairan, qtyDiminta } from "@/contexts/unit-economics/aplikasi/unit-economics";
+import { liter } from "@/bersama/format";
+import { mlBotol } from "@/contexts/asumsi/domain/asumsi";
 import { useDokumen } from "./dokumen-provider";
 import {
   Bidang,
@@ -35,6 +37,7 @@ import {
   JudulBlok,
   KepalaHalaman,
   Kartu,
+  NilaiTurunan,
   Sakelar,
   Segmen,
   Tombol,
@@ -46,8 +49,25 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
   const kecil = ukuran === "kecil";
   const daftar = kecil ? dok.supplierKecil : dok.supplierBesar;
   const terpilihId = kecil ? dok.pilihan.kecilId : dok.pilihan.besarId;
-  const batch = qtyBatch(dok, ukuran);
+  /* TIGA angka yang dulu satu. `kapasitas` = berapa botol cairannya cukup;
+     `diminta` = berapa yang dipesan (bisa lebih kecil — pembelian sampel);
+     yang DIBAYAR tiap supplier = max(MOQ, diminta), dihitung per kolom. */
+  const kapasitas = kapasitasCairan(dok, ukuran);
+  const diminta = qtyDiminta(dok, ukuran);
+  const pembelianManual = (kecil ? dok.pembelian?.kecil : dok.pembelian?.besar) ?? null;
   const dimensi = kecil ? dok.dimensi.kecil : dok.dimensi.besar;
+
+  const setPembelian = (n: number | null) =>
+    ubah((d) => ({
+      ...d,
+      pembelian: kecil ? { ...d.pembelian, kecil: n } : { ...d.pembelian, besar: n },
+    }));
+
+  const pakaiSupplier = (id: string) =>
+    ubah((d) => ({
+      ...d,
+      pilihan: kecil ? { ...d.pilihan, kecilId: id } : { ...d.pilihan, besarId: id },
+    }));
 
   const setDaftar = (fn: (d: Supplier[]) => Supplier[]) =>
     ubah((d) =>
@@ -112,15 +132,72 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
         }
       />
 
+      <div className="mb-5">
+        <Kartu>
+          <JudulBlok
+            judul="Qty botol yang dibeli"
+            sub="Berapa botol yang benar-benar dipesan ke supplier. Ini yang mengalikan seluruh harga satuan di bawah — bukan MOQ."
+          />
+          <div className="grid gap-4 md:grid-cols-3">
+            <Bidang label="Dasar pemesanan">
+              <span className="flex h-control items-center">
+                <Sakelar
+                  nyala={pembelianManual === null}
+                  label="Ikuti kapasitas cairan"
+                  onUbah={(n) => setPembelian(n ? null : kapasitas)}
+                />
+              </span>
+            </Bidang>
+
+            <Bidang
+              label="Qty dipesan"
+              petunjuk={pembelianManual === null ? "(otomatis)" : undefined}
+            >
+              {pembelianManual === null ? (
+                <NilaiTurunan akhiran="pcs">{angka(kapasitas)}</NilaiTurunan>
+              ) : (
+                <IsianAngka
+                  nilai={pembelianManual}
+                  akhiran="pcs"
+                  ariaLabel="Qty botol yang dipesan"
+                  onUbah={(n) => setPembelian(n)}
+                />
+              )}
+            </Bidang>
+
+            <Bidang label="Kapasitas cairan" petunjuk="(batas atas produksi)">
+              <NilaiTurunan akhiran="pcs">{angka(kapasitas)}</NilaiTurunan>
+            </Bidang>
+          </div>
+
+          {diminta < kapasitas ? (
+            <div className="mt-4">
+              <Catatan>
+                Memesan <strong>{pcs(diminta)}</strong> sementara cairannya cukup untuk{" "}
+                <strong>{pcs(kapasitas)}</strong>. Sisa{" "}
+                <strong>{liter(((kapasitas - diminta) * mlBotol(dok.asumsi, ukuran)) / 1000)}</strong>{" "}
+                tidak akan terbotolkan — biang, alkohol, dan OEM-nya sudah dibayar tapi tidak jadi
+                barang yang bisa dijual. Angkanya muncul di Initial Investment.
+              </Catatan>
+            </div>
+          ) : null}
+        </Kartu>
+      </div>
+
       <div className="flex flex-col gap-3">
         {daftar.map((sup) => (
           <KartuSupplier
             key={sup.id}
             sup={sup}
             terpilih={sup.id === terpilihId}
-            batch={batch}
+            diminta={diminta}
+            kapasitas={kapasitas}
             kurs={dok.asumsi.kurs}
             perizinanPct={dok.asumsi.perizinanPct}
+            onPakai={() => {
+              pakaiSupplier(sup.id);
+              beriKabar(`${sup.nama} dipakai Initial Investment & Unit Economics`);
+            }}
             onUbah={(fn) => setSupplier(sup.id, fn)}
             onHapus={() => hapus(sup.id)}
             onResetFreight={() => {
@@ -148,12 +225,13 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
         <Kartu>
           <JudulBlok
             judul={`Perbandingan Supplier — ${label}`}
-            sub={`Kolom bertanda adalah supplier yang sedang dipakai Initial Investment. Total memakai qty MOQ atau qty batch (${pcs(batch)}), mana yang lebih besar.`}
+            sub={`Kolom bertanda adalah supplier yang sedang dipakai Initial Investment. Semua kolom dihitung untuk ${pcs(diminta)} yang dipesan; supplier ber-MOQ lebih tinggi memaksa membeli lebih banyak, dan itu ditandai.`}
           />
           <TabelBanding
             daftar={daftar}
             terpilihId={terpilihId}
-            batch={batch}
+            diminta={diminta}
+            kapasitas={kapasitas}
             kurs={dok.asumsi.kurs}
             perizinanPct={dok.asumsi.perizinanPct}
           />
@@ -168,25 +246,30 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
 function KartuSupplier({
   sup,
   terpilih,
-  batch,
+  diminta,
+  kapasitas,
   kurs,
   perizinanPct,
+  onPakai,
   onUbah,
   onHapus,
   onResetFreight,
 }: {
   sup: Supplier;
   terpilih: boolean;
-  batch: number;
+  diminta: number;
+  kapasitas: number;
   kurs: number;
   perizinanPct: number;
+  onPakai: () => void;
   onUbah: (fn: (s: Supplier) => Supplier) => void;
   onHapus: () => void;
   onResetFreight: () => void;
 }) {
   const simbol = sup.mataUang === "USD" ? "$" : "Rp";
-  const inv = investasiSupplier(sup, kurs, perizinanPct, batch);
+  const inv = investasiSupplier(sup, kurs, perizinanPct, diminta);
   const cbm = sup.freight.pcsPerCBM > 0 ? inv.qty / sup.freight.pcsPerCBM : 0;
+  const jadi = Math.min(kapasitas, inv.qty);
 
   return (
     <section
@@ -212,9 +295,15 @@ function KartuSupplier({
           ]}
           onUbah={(m) => onUbah((x) => ({ ...x, mataUang: m }))}
         />
+        {/* Sebelum ini hanya ada badge pasif, dan satu-satunya pemilih supplier
+            ada di tab 4 — jadi menambah supplier di sini tidak pernah mengubah
+            satu angka pun di Initial Investment maupun Unit Economics, tanpa
+            satu pun tanda bahwa pilihannya belum berpindah. */}
         {terpilih ? (
           <span className="badge bg-primary-subtle text-primary">dipakai</span>
-        ) : null}
+        ) : (
+          <Tombol onClick={onPakai}>Pakai supplier ini</Tombol>
+        )}
         <TombolHapus label={`Hapus ${sup.nama}`} onClick={onHapus} />
       </div>
 
@@ -350,10 +439,25 @@ function KartuSupplier({
 
       <div className="mt-4 flex flex-wrap items-end justify-between gap-3 border-t border-border pt-3">
         <div>
-          <p className="text-meta text-fg-muted">Total investasi (qty {pcs(inv.qty)})</p>
-          <p className="mt-0.5 text-meta text-fg-subtle">
-            Biaya botol per unit (variable): {rupiah(inv.satuan.total)}
+          <p className="text-meta text-fg-muted">
+            Total investasi untuk <strong>{pcs(inv.qty)}</strong> dibeli
+            {inv.moqMengikat ? (
+              <span className="badge ml-2 bg-warning-bg text-warning-fg">
+                MOQ {pcs(sup.moq)} mengikat
+              </span>
+            ) : null}
           </p>
+          <p className="mt-0.5 text-meta text-fg-subtle">
+            Biaya botol per unit: {rupiah(inv.satuan.totalLengkap)}
+            {inv.satuan.freight > 0 ? (
+              <span> — sudah termasuk freight {rupiah(inv.satuan.freight)}</span>
+            ) : null}
+          </p>
+          {jadi < inv.qty ? (
+            <p className="mt-0.5 text-meta text-fg-subtle">
+              Hanya {pcs(jadi)} yang terisi — sisanya kelebihan MOQ, jadi stok.
+            </p>
+          ) : null}
         </div>
         <p className="tabular text-card-title font-bold text-fg">{rupiah(inv.total)}</p>
       </div>
@@ -366,23 +470,41 @@ function KartuSupplier({
 function TabelBanding({
   daftar,
   terpilihId,
-  batch,
+  diminta,
+  kapasitas,
   kurs,
   perizinanPct,
 }: {
   daftar: Supplier[];
   terpilihId: string;
-  batch: number;
+  diminta: number;
+  kapasitas: number;
   kurs: number;
   perizinanPct: number;
 }) {
-  const baris = daftar.map((s) => ({
-    sup: s,
-    inv: investasiSupplier(s, kurs, perizinanPct, batch),
-    satuan: biayaSatuan(s, kurs, perizinanPct),
-  }));
-  const totalTermurah = Math.min(...baris.map((b) => b.inv.total));
-  const unitTermurah = Math.min(...baris.map((b) => b.satuan.total));
+  const baris = daftar.map((s) => {
+    const inv = investasiSupplier(s, kurs, perizinanPct, diminta);
+    /* Botol yang benar-benar TERISI kalau supplier ini yang dipakai. Membeli
+       lebih banyak karena MOQ tidak menambah botol jadi — cairannya tetap
+       segitu. Ini pembagi satu-satunya angka di tabel ini yang setara antar
+       kolom. */
+    const jadi = Math.min(kapasitas, inv.qty);
+    return {
+      sup: s,
+      inv,
+      satuan: biayaSatuan(s, kurs, perizinanPct),
+      jadi,
+      perBotolJadi: jadi > 0 ? inv.total / jadi : 0,
+    };
+  });
+  const unitTermurah = Math.min(...baris.map((b) => b.satuan.totalLengkap));
+  /* ⚠️ "Termurah" HANYA diberikan pada biaya per botol terpakai.
+     Total investasi sengaja tidak lagi diberi badge: dua supplier ber-MOQ
+     berbeda membelanjakan uang untuk jumlah botol yang berbeda, dan menobatkan
+     yang totalnya lebih kecil di atas dua qty yang tidak sama adalah cara
+     tercepat memilih vendor yang salah. Supplier yang seluruh harganya masih
+     Rp0 dulu selalu menang di baris itu. */
+  const jadiTermurah = Math.min(...baris.filter((b) => b.jadi > 0).map((b) => b.perBotolJadi));
 
   const kolomHi = (id: string) => (id === terpilihId ? "bg-primary-subtle/50" : "");
 
@@ -405,7 +527,46 @@ function TabelBanding({
           </tr>
         </thead>
         <tbody>
-          <Baris label="MOQ" kolom={baris} hi={kolomHi} render={(b) => pcs(b.sup.moq)} />
+          {/* Qty DIBELI naik ke baris pertama, MOQ turun jadi keterangannya.
+              Sebelumnya MOQ punya baris sendiri dengan angka besar, sementara
+              qty yang benar-benar mengalikan harga cuma muncul sebagai teks
+              kecil di dalam sel — pembaca mengalikan angka MOQ di kepalanya dan
+              mendapat hasil yang meleset ribuan kali lipat. */}
+          <Baris
+            label="Qty dibeli"
+            kolom={baris}
+            hi={kolomHi}
+            render={(b) => (
+              <span className="flex flex-col items-end">
+                <span className="font-semibold text-fg">{pcs(b.inv.qty)}</span>
+                <span className="text-meta text-fg-subtle">
+                  {b.inv.moqMengikat ? (
+                    <span className="badge bg-warning-bg text-warning-fg">
+                      MOQ {pcs(b.sup.moq)} mengikat
+                    </span>
+                  ) : (
+                    <>MOQ {pcs(b.sup.moq)} — tidak mengikat</>
+                  )}
+                </span>
+              </span>
+            )}
+          />
+
+          <Baris
+            label="Botol terisi"
+            kolom={baris}
+            hi={kolomHi}
+            render={(b) => (
+              <span className="flex flex-col items-end">
+                <span>{pcs(b.jadi)}</span>
+                {b.jadi < b.inv.qty ? (
+                  <span className="text-meta text-fg-subtle">
+                    {pcs(b.inv.qty - b.jadi)} jadi stok
+                  </span>
+                ) : null}
+              </span>
+            )}
+          />
 
           <BarisTumpuk
             label="Molding (sekali bayar)"
@@ -463,33 +624,54 @@ function TabelBanding({
           />
 
           <tr className="border-t border-border-strong">
-            <td className="td font-semibold text-fg">Total investasi</td>
+            <td className="td font-semibold text-fg">
+              Total investasi
+              <span className="ml-1 font-normal text-fg-subtle">(qty masing-masing)</span>
+            </td>
             {baris.map((b) => (
               <td
                 key={b.sup.id}
-                className={cx("td tabular text-right font-bold", kolomHi(b.sup.id))}
+                className={cx("td tabular text-right font-bold text-fg", kolomHi(b.sup.id))}
                 data-numeric
               >
-                <span className={b.inv.total === totalTermurah ? "text-naik" : "text-fg"}>
-                  {rupiah(b.inv.total)}
-                </span>
-                {b.inv.total === totalTermurah ? (
-                  <span className="badge ml-2 bg-success-bg text-success-fg">termurah</span>
-                ) : null}
+                {rupiah(b.inv.total)}
               </td>
             ))}
           </tr>
           <tr>
-            <td className="td font-semibold text-fg">Biaya botol / unit</td>
+            <td className="td font-semibold text-fg">
+              Biaya botol / unit
+              <span className="ml-1 font-normal text-fg-subtle">(termasuk freight)</span>
+            </td>
             {baris.map((b) => (
               <td
                 key={b.sup.id}
                 className={cx("td tabular text-right font-bold", kolomHi(b.sup.id))}
                 data-numeric
               >
-                <span className={b.satuan.total === unitTermurah ? "text-naik" : "text-fg"}>
-                  {rupiah(b.satuan.total)}
+                <span className={b.satuan.totalLengkap === unitTermurah ? "text-naik" : "text-fg"}>
+                  {rupiah(b.satuan.totalLengkap)}
                 </span>
+              </td>
+            ))}
+          </tr>
+          <tr>
+            <td className="td font-semibold text-fg">
+              Biaya per botol terpakai
+              <span className="ml-1 font-normal text-fg-subtle">(total ÷ botol terisi)</span>
+            </td>
+            {baris.map((b) => (
+              <td
+                key={b.sup.id}
+                className={cx("td tabular text-right font-bold", kolomHi(b.sup.id))}
+                data-numeric
+              >
+                <span className={b.perBotolJadi === jadiTermurah ? "text-naik" : "text-fg"}>
+                  {b.jadi > 0 ? rupiah(b.perBotolJadi) : "—"}
+                </span>
+                {b.jadi > 0 && b.perBotolJadi === jadiTermurah ? (
+                  <span className="badge ml-2 bg-success-bg text-success-fg">termurah</span>
+                ) : null}
               </td>
             ))}
           </tr>
@@ -498,10 +680,17 @@ function TabelBanding({
 
       <div className="mt-4">
         <Catatan>
-          &ldquo;Termurah&rdquo; pada total investasi dan pada biaya per unit bisa jatuh ke
-          supplier yang <strong>berbeda</strong>, dan itu bukan kesalahan hitung: yang satu
-          menyerap molding, yang lain tidak. Yang menentukan mana yang relevan adalah berapa
-          lama molding itu akan dipakai — satu batch, atau tiga tahun.
+          <strong>Total investasi tidak diberi badge &ldquo;termurah&rdquo;</strong>, dan itu
+          disengaja: supplier ber-MOQ berbeda membelanjakan uang untuk jumlah botol yang
+          berbeda, jadi dua angkanya bukan barang yang sama. Yang setara adalah{" "}
+          <strong>biaya per botol terpakai</strong> — total dibagi botol yang benar-benar
+          terisi, sehingga botol yang terpaksa dibeli karena MOQ ikut terhitung sebagai beban.
+          <br />
+          <br />
+          &ldquo;Termurah&rdquo; pada biaya per unit dan pada biaya per botol terpakai bisa
+          jatuh ke supplier yang <strong>berbeda</strong>, dan itu bukan kesalahan hitung: yang
+          satu menyerap molding dan kelebihan MOQ, yang lain tidak. Yang menentukan mana yang
+          relevan adalah berapa lama molding itu akan dipakai — satu batch, atau tiga tahun.
         </Catatan>
       </div>
     </BungkusTabel>
@@ -512,6 +701,10 @@ type Kolom = {
   sup: Supplier;
   inv: ReturnType<typeof investasiSupplier>;
   satuan: ReturnType<typeof biayaSatuan>;
+  /** Botol yang benar-benar terisi kalau supplier ini dipakai. */
+  jadi: number;
+  /** Total investasi ÷ botol terisi. Satu-satunya angka yang setara antar kolom. */
+  perBotolJadi: number;
 };
 
 function Baris({

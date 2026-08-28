@@ -164,7 +164,7 @@ console.log("\n=== 2. Qty batch diturunkan, tidak diwarisi ===");
      basi itu hidup lagi — dan ia dipakai membagi amortisasi molding. */
   const d = bacaDokumen(payloadV0);
   const r = unitEconomics(d, "kecil");
-  sama("qty batch = hasil campuran, bukan 2.125 dari payload", r.qtyBatch, 8500);
+  sama("qty produksi = hasil campuran, bukan 2.125 dari payload", r.qtyProduksi, 8500);
   cek("tidak ada field batch tersimpan di dokumen", !("projection" in (d as object)));
 }
 

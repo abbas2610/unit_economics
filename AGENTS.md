@@ -133,6 +133,44 @@ dokumen.
   `npm run typecheck` hijau tanpa pernah melihat berkas probe. Probe yang
   menghitung ukuran mana pun sekarang menyebut keduanya secara harfiah.
 
+- **Satu angka yang menjawab empat pertanyaan akan salah pada tiga di antaranya.**
+  `qtyBatch` dulu merangkap kapasitas cairan, jumlah yang dipesan, jumlah yang
+  dibayar, dan jumlah yang jadi. Selama MOQ tidak mengikat dan tidak ada
+  pembelian sampel, keempatnya kebetulan sama — jadi tidak ada yang salah selama
+  berbulan-bulan. Begitu salah satu syarat itu lepas, keempat jawabannya bergeser
+  sekaligus dan semuanya tetap berupa rupiah yang wajar. Sekarang ada
+  `kapasitasCairan`, `qtyDiminta`, `qtyBeli`, `qtyProduksi`, dan yang memilih
+  salah satu harus menyebut alasannya.
+
+- **MOQ adalah LANTAI, dan menampilkannya seperti pesanan membuat orang salah
+  hitung di kepalanya.** Tabel perbandingan sempat memberi MOQ satu baris penuh
+  dengan angka besar, sementara qty yang benar-benar mengalikan harga cuma muncul
+  sebagai teks kecil di dalam sel. Yang membaca "MOQ 100 pcs" lalu melihat
+  Rp84 juta menyimpulkan aplikasinya rusak — padahal yang dikalikan 8.500 dan
+  angka 100 tidak mengikat apa pun. Angka yang MENENTUKAN harus lebih menonjol
+  daripada angka yang cuma membatasi.
+
+- **Biaya yang dipakai memilih vendor harus sama dengan biaya yang dipakai
+  COGS.** Baris "Biaya botol / unit" memakai `biayaSatuan().total` yang tidak
+  memuat freight, sementara `unitEconomics()` memasukkannya. Botol yang lebih
+  murah tapi lebih gemuk membayar jauh lebih banyak per CBM, jadi tabelnya bisa
+  menobatkan vendor yang COGS-nya JUSTRU lebih mahal — terukur Rp77.013 vs
+  Rp62.363. Sekarang ada `satuan.totalLengkap`, dan `total` diberi peringatan di
+  tempatnya.
+
+- **"Termurah" di atas dua qty yang berbeda selalu salah.** Total investasi dua
+  supplier ber-MOQ berbeda bukan barang yang sama, dan badge itu membuat supplier
+  yang seluruh harganya masih **Rp0** selalu menang — yang persis terjadi pada
+  supplier yang baru ditambah. Badge sekarang cuma menempel di "biaya per botol
+  terpakai", satu-satunya angka yang setara antar kolom.
+
+- **Menambah entitas tanpa cara memilihnya = fitur yang tidak pernah berjalan.**
+  `tambah()` menambahkan supplier ke daftar tapi tidak menyentuh `pilihan`,
+  sementara satu-satunya pemilih ada di tab 4. Menambah supplier di tab 3 karena
+  itu tidak mengubah satu angka pun di seluruh aplikasi — tanpa error, tanpa
+  tanda, dan `hapus()` tepat di bawahnya justru repot-repot memindahkan pilihan.
+  Terukur: total investasi sebelum dan sesudah menambah supplier, selisih Rp0.
+
 - **Sifat perilaku dibuktikan dengan MENJALANKAN, bukan mem-`grep` kode.**
   "Alat pemulihan tidak pernah `POST`" diuji dengan menyalakan PostgREST palsu,
   menjalankan alatnya sungguhan, dan memeriksa metode yang benar-benar sampai —

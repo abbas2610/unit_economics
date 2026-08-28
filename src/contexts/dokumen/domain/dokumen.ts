@@ -62,6 +62,32 @@ export type Dokumen = {
   /** Supplier yang dipakai Initial Investment & Unit Economics. */
   pilihan: { kecilId: string; besarId: string };
 
+  /**
+   * Berapa botol yang DIPESAN, kalau bukan sebanyak yang cairannya cukup.
+   *
+   * `null` — bukan `0` — berarti "ikuti kapasitas cairan". `0` adalah pernyataan
+   * ("tidak memesan botol sama sekali"), dan meleburnya membuat pembelian yang
+   * belum diisi terbaca sebagai keputusan untuk tidak berproduksi.
+   *
+   * ## Kenapa ini ada, dan kenapa ia BUKAN turunan
+   *
+   * Sebelum field ini, jumlah botol yang dibeli selalu `max(MOQ, kapasitas
+   * cairan)` — tidak ada cara memodelkan pembelian sampel. Tim yang ingin
+   * bertanya "berapa biayanya kalau saya cuma beli 100 botol dulu" mendapat
+   * jawaban untuk 8.500 botol, karena MOQ 100 tidak mengikat apa pun dan
+   * kapasitas cairanlah yang menang.
+   *
+   * Ia tinggal di dokumen dan bukan di supplier dengan sengaja: kalau tiap
+   * supplier punya qty-nya sendiri, tabel perbandingan berhenti membandingkan
+   * hal yang sama — dan badge "termurah" di atas dua qty berbeda adalah cara
+   * tercepat memilih vendor yang salah.
+   *
+   * Yang JADI botol tetap turunan: `qtyProduksi()` = min(kapasitas cairan, botol
+   * yang dibeli). Membeli 100 botol tidak menghilangkan cairannya — ia jadi
+   * sisa yang tidak terbotolkan, dan itu ditampilkan.
+   */
+  pembelian: { kecil: number | null; besar: number | null };
+
   /** Harga jual per botol. */
   harga: { kecil: number; besar: number };
   marketing: { offline: number; online: number; lainnya: number };
@@ -96,6 +122,7 @@ export function dokumenAwal(): Dokumen {
     supplierKecil: supplier.kecil,
     supplierBesar: supplier.besar,
     pilihan: { kecilId: supplier.kecil[0].id, besarId: supplier.besar[0].id },
+    pembelian: { kecil: null, besar: null },
     harga: { kecil: 200_000, besar: 350_000 },
     marketing: { offline: 300_000_000, online: 200_000_000, lainnya: 50_000_000 },
     opsi: { amortisasiMolding: false },

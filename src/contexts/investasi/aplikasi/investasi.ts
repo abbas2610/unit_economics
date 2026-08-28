@@ -21,7 +21,13 @@ import { nilaiPembelian, totalLegalVarian } from "@/contexts/fragrance/domain/va
 import { investasiSupplier } from "@/contexts/supplier/domain/supplier";
 import type { InvestasiSupplier, Supplier } from "@/contexts/supplier/domain/supplier";
 import type { Dokumen } from "@/contexts/dokumen/domain/dokumen";
-import { hasilProduksi, supplierTerpilih } from "@/contexts/unit-economics/aplikasi/unit-economics";
+import {
+  kapasitasCairan,
+  qtyDiminta,
+  qtyProduksi,
+  supplierTerpilih,
+} from "@/contexts/unit-economics/aplikasi/unit-economics";
+import { mlBotol } from "@/contexts/asumsi/domain/asumsi";
 
 export type RincianInvestasi = {
   supplierKecil: Supplier | undefined;
@@ -29,9 +35,17 @@ export type RincianInvestasi = {
   invKecil: InvestasiSupplier;
   invBesar: InvestasiSupplier;
 
+  /** Botol yang JADI. Ini yang mengalikan OEM, box, dan fulfillment. */
   qtyKecil: number;
   qtyBesar: number;
   totalBotol: number;
+
+  /** Botol yang cairannya cukup — batas atas, sebelum pembelian membatasinya. */
+  kapasitasKecil: number;
+  kapasitasBesar: number;
+  /** Cairan yang tidak kebagian botol, mL. Uang yang sudah keluar tanpa barang. */
+  mlTakTerbotolkanKecil: number;
+  mlTakTerbotolkanBesar: number;
 
   /* — bahan baku — */
   fragranceDasar: number;
@@ -65,28 +79,36 @@ export type RincianInvestasi = {
 
 const NOL: InvestasiSupplier = {
   qty: 0,
+  moqMengikat: false,
   molding: 0,
   botol: 0,
   aksesoris: 0,
   perizinan: 0,
   freight: 0,
   total: 0,
-  satuan: { botol: 0, perizinan: 0, aksesoris: 0, total: 0 },
+  satuan: { botol: 0, perizinan: 0, aksesoris: 0, total: 0, freight: 0, totalLengkap: 0 },
 };
 
 export function initialInvestment(dok: Dokumen): RincianInvestasi {
   const { kurs, perizinanPct, ppnPct, oemKecil, oemBesar, fulfillment } = dok.asumsi;
-  const hasil = hasilProduksi(dok);
-  const qtyKecil = hasil.pcsKecil;
-  const qtyBesar = hasil.pcsBesar;
+
+  /* Tiga qty yang berbeda, dan memisahkannya adalah inti perbaikan ini:
+       kapasitas — berapa botol yang cairannya cukup
+       diminta   — berapa botol yang dipesan (bisa lebih kecil: pembelian sampel)
+       produksi  — berapa botol yang JADI = min(kapasitas, yang dibayar)
+     OEM, box, dan fulfillment mengalikan PRODUKSI; supplier menagih yang DIBAYAR. */
+  const kapasitasKecil = kapasitasCairan(dok, "kecil");
+  const kapasitasBesar = kapasitasCairan(dok, "besar");
+  const qtyKecil = qtyProduksi(dok, "kecil");
+  const qtyBesar = qtyProduksi(dok, "besar");
 
   const supKecil = supplierTerpilih(dok, "kecil");
   const supBesar = supplierTerpilih(dok, "besar");
   const invKecil = supKecil
-    ? investasiSupplier(supKecil, kurs, perizinanPct, qtyKecil)
+    ? investasiSupplier(supKecil, kurs, perizinanPct, qtyDiminta(dok, "kecil"))
     : NOL;
   const invBesar = supBesar
-    ? investasiSupplier(supBesar, kurs, perizinanPct, qtyBesar)
+    ? investasiSupplier(supBesar, kurs, perizinanPct, qtyDiminta(dok, "besar"))
     : NOL;
 
   const totalBotol = qtyKecil + qtyBesar;
@@ -105,10 +127,17 @@ export function initialInvestment(dok: Dokumen): RincianInvestasi {
   const produk = bahanBaku + botolPacking + fulfillmentTotal;
   const marketing = dok.marketing.offline + dok.marketing.online + dok.marketing.lainnya;
 
-  /* Selisih MOQ vs kebutuhan batch. Dinilai dengan biaya botol per unit, bukan
-     total per unit termasuk molding: molding sudah dibayar penuh apa pun
-     qty-nya, jadi memasukkannya ke "nilai kelebihan stok" akan melebih-lebihkan
-     modal yang benar-benar tertahan di gudang. */
+  /* Botol yang dibayar tapi tidak terisi. Dinilai `satuan.totalLengkap` —
+     botol + perizinan + aksesoris + FREIGHT — bukan `satuan.total`.
+
+     ⚠️ Freight-nya sempat hilang di sini, dan itu bug yang diam: botol kelebihan
+     itu benar-benar ikut dikapalkan dan benar-benar ikut dibayar per CBM.
+     Mengecualikannya melaporkan modal tertahan 9,6% lebih rendah dari yang
+     sesungguhnya (Rp30,2 juta dilaporkan untuk Rp33,4 juta yang dibayar).
+
+     Molding tetap DIKECUALIKAN, dan itu memang benar: ia dibayar penuh berapa
+     pun qty-nya, jadi memasukkannya akan melebih-lebihkan modal yang tertahan
+     di gudang sebagai barang. */
   const kelebihanKecil = Math.max(0, invKecil.qty - qtyKecil);
   const kelebihanBesar = Math.max(0, invBesar.qty - qtyBesar);
 
@@ -120,6 +149,10 @@ export function initialInvestment(dok: Dokumen): RincianInvestasi {
     qtyKecil,
     qtyBesar,
     totalBotol,
+    kapasitasKecil,
+    kapasitasBesar,
+    mlTakTerbotolkanKecil: Math.max(0, kapasitasKecil - qtyKecil) * mlBotol(dok.asumsi, "kecil"),
+    mlTakTerbotolkanBesar: Math.max(0, kapasitasBesar - qtyBesar) * mlBotol(dok.asumsi, "besar"),
     fragranceDasar,
     fragrancePPN,
     fragranceTotal,
@@ -135,7 +168,7 @@ export function initialInvestment(dok: Dokumen): RincianInvestasi {
     totalPajak: fragrancePPN + invKecil.perizinan + invBesar.perizinan + legalVarian,
     kelebihanKecil,
     kelebihanBesar,
-    nilaiKelebihanKecil: kelebihanKecil * invKecil.satuan.total,
-    nilaiKelebihanBesar: kelebihanBesar * invBesar.satuan.total,
+    nilaiKelebihanKecil: kelebihanKecil * invKecil.satuan.totalLengkap,
+    nilaiKelebihanBesar: kelebihanBesar * invBesar.satuan.totalLengkap,
   };
 }

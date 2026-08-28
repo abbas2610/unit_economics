@@ -187,21 +187,31 @@ console.log("\n=== 4. MOQ melebihi kebutuhan batch ===");
   sama("kelebihan stok botol kecil 1.500 pcs", i.kelebihanKecil, 10_000 - 8_500);
   sama("kelebihan stok botol besar 8.725 pcs", i.kelebihanBesar, 10_000 - 1_275);
 
-  /* Nilai kelebihan memakai biaya botol per unit, BUKAN termasuk molding —
-     molding sudah dibayar penuh berapa pun qty-nya. */
+  /* Nilai kelebihan memakai biaya botol per unit TERMASUK FREIGHT, dan BUKAN
+     termasuk molding — molding sudah dibayar penuh berapa pun qty-nya, tapi
+     botol kelebihan itu benar-benar ikut dikapalkan. */
   dekat(
-    "nilai kelebihan = pcs × biaya botol per unit",
+    "nilai kelebihan = pcs × biaya botol per unit termasuk freight",
     i.nilaiKelebihanKecil,
-    1_500 * i.invKecil.satuan.total,
+    1_500 * i.invKecil.satuan.totalLengkap,
     1e-6,
   );
   cek(
     "nilai kelebihan TIDAK menyerap molding",
-    i.nilaiKelebihanKecil < i.invKecil.molding + 1_500 * i.invKecil.satuan.total,
+    i.nilaiKelebihanKecil < i.invKecil.molding + 1_500 * i.invKecil.satuan.totalLengkap,
+  );
+  cek(
+    "nilai kelebihan LEBIH BESAR daripada tanpa freight",
+    i.nilaiKelebihanKecil > 1_500 * i.invKecil.satuan.total,
+    `${Math.round(i.nilaiKelebihanKecil)} > ${Math.round(1_500 * i.invKecil.satuan.total)}`,
   );
 }
 
 kontrol("[kontrol negatif] batch default memang lebih kecil dari MOQ", hasilProduksi(awal).pcsKecil >= 10_000);
+kontrol(
+  "[kontrol negatif] supplier default memang berfreight — kalau tidak, uji freight di atas kosong",
+  initialInvestment(awal).invKecil.satuan.freight === 0,
+);
 
 /* ═════════════════════════════════════ 5. royalti ikut harga jual ══ */
 console.log("\n=== 5. Royalti dihitung dari harga jual ===");
@@ -259,8 +269,8 @@ for (const ukuran of ["kecil", "besar"] as const) {
   dekat(`[${ukuran}] margin = profit ÷ harga`, r.grossMargin, (r.grossProfit / r.harga) * 100, 1e-9);
 }
 
-/* ═════════════════════════════════════════════ 7. amortisasi molding ══ */
-console.log("\n=== 7. Amortisasi molding ===");
+/* ═══════════════════════════════ 7. amortisasi molding & kelebihan MOQ ══ */
+console.log("\n=== 7. Amortisasi molding & kelebihan MOQ ===");
 
 {
   const mati = unitEconomics(awal, "kecil");
@@ -269,7 +279,25 @@ console.log("\n=== 7. Amortisasi molding ===");
   const nyala: Dokumen = { ...awal, opsi: { amortisasiMolding: true } };
   const r = unitEconomics(nyala, "kecil");
   const molding = 2511 * 17_000; // 1475 + 0 + 1036 USD
-  dekat("amortisasi = total molding ÷ qty batch", r.amortisasi, molding / 8_500, 1e-6);
+  dekat("bagian molding = total molding ÷ qty produksi", r.amortisasiMolding, molding / 8_500, 1e-6);
+
+  /* Kelebihan MOQ diserap TERPISAH, dan ia bukan angka kecil: MOQ 10.000 pada
+     produksi 8.500 meninggalkan 1.500 botol yang dibayar penuh. Sebelum ini ia
+     tidak muncul di mana pun walau toggle-nya menyala. */
+  const inv = initialInvestment(nyala);
+  sama("kelebihan MOQ 1.500 pcs", r.kelebihanBotol, 1_500);
+  dekat(
+    "bagian kelebihan = 1.500 × biaya per unit lengkap ÷ 8.500",
+    r.amortisasiKelebihan,
+    (1_500 * inv.invKecil.satuan.totalLengkap) / 8_500,
+    1e-6,
+  );
+  dekat("amortisasi = molding + kelebihan", r.amortisasi, r.amortisasiMolding + r.amortisasiKelebihan, 1e-9);
+  cek(
+    "bagian kelebihan MOQ bukan angka yang bisa diabaikan",
+    r.amortisasiKelebihan > r.amortisasiMolding * 0.5,
+    `kelebihan ${Math.round(r.amortisasiKelebihan)} vs molding ${Math.round(r.amortisasiMolding)}`,
+  );
   dekat("COGS naik persis sebesar amortisasi", r.cogs - mati.cogs, r.amortisasi, 1e-6);
 
   /* Batch nol (mis. qty fragrance dikosongkan) tidak boleh melahirkan Infinity
@@ -291,8 +319,8 @@ console.log("\n=== 8. Break-even & rata-rata tertimbang ===");
   const b = unitEconomics(awal, "besar");
   const i = initialInvestment(awal);
 
-  const gpTertimbang = (k.grossProfit * k.qtyBatch + b.grossProfit * b.qtyBatch) /
-    (k.qtyBatch + b.qtyBatch);
+  const gpTertimbang = (k.grossProfit * k.qtyProduksi + b.grossProfit * b.qtyProduksi) /
+    (k.qtyProduksi + b.qtyProduksi);
   const gpSederhana = (k.grossProfit + b.grossProfit) / 2;
   cek(
     "rata-rata TERTIMBANG berbeda dari rata-rata sederhana",

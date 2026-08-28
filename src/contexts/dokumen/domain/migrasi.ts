@@ -64,6 +64,24 @@ const teks = (v: unknown, bawaan: string): string =>
 const boolean = (v: unknown, bawaan: boolean): boolean =>
   typeof v === "boolean" ? v : bawaan;
 
+/**
+ * Angka yang boleh `null`, dan `null`-nya BERARTI sesuatu.
+ *
+ * Dipakai `pembelian`, di mana `null` = "ikuti kapasitas cairan" dan `0` =
+ * "tidak memesan botol sama sekali". Memakai `num(v, 0)` di sana akan melebur
+ * keduanya, dan dokumen yang belum pernah menyentuh field ini akan terbaca
+ * sebagai keputusan untuk tidak berproduksi — nol botol, COGS tak hingga.
+ */
+function numOpsional(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 /* ═════════════════════════════════════════════════════════════════ id ══ */
 
 /**
@@ -256,6 +274,9 @@ function dariV0(payload: Rekaman): Dokumen {
       kecilId: teks(selection.smallId, awal.pilihan.kecilId),
       besarId: teks(selection.largeId, awal.pilihan.besarId),
     },
+    /* Bentuk v0 tidak punya konsep pembelian terpisah — di sana qty botol SELALU
+       mengikuti kapasitas cairan. `null` mempertahankan perilaku itu persis. */
+    pembelian: { kecil: null, besar: null },
     harga: {
       kecil: num(projection.priceSmall, awal.harga.kecil),
       besar: num(projection.priceLarge, awal.harga.besar),
@@ -288,6 +309,7 @@ function dariV1(payload: Rekaman): Dokumen {
   const legal = objek(payload.legalPerVarian);
   const dimensi = objek(payload.dimensi);
   const pilihan = objek(payload.pilihan);
+  const pembelian = objek(payload.pembelian);
   const harga = objek(payload.harga);
   const marketing = objek(payload.marketing);
   const opsi = objek(payload.opsi);
@@ -335,6 +357,10 @@ function dariV1(payload: Rekaman): Dokumen {
     pilihan: {
       kecilId: teks(pilihan.kecilId, awal.pilihan.kecilId),
       besarId: teks(pilihan.besarId, awal.pilihan.besarId),
+    },
+    pembelian: {
+      kecil: numOpsional(pembelian.kecil),
+      besar: numOpsional(pembelian.besar),
     },
     harga: {
       kecil: num(harga.kecil, awal.harga.kecil),
