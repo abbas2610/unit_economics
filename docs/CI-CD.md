@@ -178,3 +178,37 @@ aktif, atau tekan "Enable workflow".
 Workflow ini tidak bisa membangunkannya — project yang terjeda tidak melayani
 permintaan sama sekali. Buka dashboard Supabase dan tekan **Restore**. Gejalanya
 di sini: job merah dengan HTTP 5xx atau koneksi ditolak.
+
+### Jalur kedua: cron Hostinger
+
+Workflow GitHub di atas punya satu titik lemah yang tidak bisa ditutup dari
+dalam GitHub: **cron-nya dimatikan sendiri setelah 60 hari repo tanpa
+aktivitas.** Jalur kedua ini tidak tunduk pada aturan itu — ia berjalan di
+server yang menyajikan `abbas.co.id` dan menyala terus.
+
+**Kenapa lewat berkas, bukan langsung `curl` di baris crontab.** Hostinger
+membatasi perintah cron **255 karakter**, sementara anon key sendiri sudah
+~220. `curl` lengkap tidak muat, dan tidak ada cara memendekkannya — apikey
+sebagai query parameter pun tetap lewat batas. Jadi barisnya cuma memanggil
+berkas yang dikirim bersama bundle.
+
+Berkasnya **dibangkitkan job `bundel`**, bukan dikomit — menuliskan anon key ke
+berkas repo akan membatalkan alasan `env.ts` dibuat. Memutar kunci tetap berarti
+ganti repository variable lalu deploy ulang, sama seperti kredensial lain.
+
+Perintah cron-nya (harian, ~12 jam berselisih dari jadwal GitHub supaya Supabase
+tersentuh dua kali sehari dari dua sumber yang tidak saling bergantung):
+
+```
+41 18 * * *   sh /home/u336730906/domains/abbas.co.id/hbuilds/current/nodejs/public/perfume-app/jaga-supabase.sh
+```
+
+Pasang di hPanel → Advanced → Cron Jobs. **Baru bisa dipasang setelah satu
+deploy berhasil** — sebelum itu berkasnya belum ada di server.
+
+Log-nya menumpuk di `~/jaga-supabase.log`, dipangkas sendiri di 400 baris
+terakhir. Isinya `OK <waktu>` atau `GAGAL <waktu>`; skripnya tidak pernah diam.
+
+> ⚠️ Path-nya menyebut `hbuilds/current/nodejs` karena aplikasi portfolio
+> dijalankan Passenger dari sana, bukan dari `public_html` — yang isinya cuma
+> `.htaccess`. Terbaca di `.htaccess`: `PassengerAppRoot`.

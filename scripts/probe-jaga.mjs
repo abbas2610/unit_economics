@@ -145,5 +145,50 @@ kontrol(
   );
 }
 
+console.log("\n=== 3. Skrip keepalive yang dibangkitkan CI ===");
+
+/**
+ * Jalur kedua: cron Hostinger memanggil berkas yang ditulis job `bundel`.
+ *
+ * Ia ada karena cron Hostinger membatasi perintahnya 255 karakter sementara
+ * anon key sendiri sudah ~220 — `curl` lengkap tidak muat di satu baris
+ * crontab. Konsekuensinya, ada jalur kedua yang menyentuh Supabase tiap hari,
+ * dan jalur itu butuh penjaga yang sama dengan yang pertama.
+ *
+ * Yang disisir cuma blok heredoc-nya, bukan seluruh `ci.yml` — berkas itu penuh
+ * perintah git yang sah (`rsync --delete`, `git commit`) yang akan menyalakan
+ * detektor kalau ikut terbawa.
+ */
+{
+  const CI = ".github/workflows/ci.yml";
+  const isiCI = existsSync(CI) ? readFileSync(CI, "utf8") : "";
+  const blok = /cat > out\/jaga-supabase\.sh <<SKRIP\n([\s\S]*?)\n\s*SKRIP\n/.exec(isiCI);
+
+  cek("blok pembangkit skrip ada di ci.yml", blok !== null);
+
+  if (blok) {
+    const skrip = blok[1];
+    const temuan = cariTulis(skrip);
+    cek("skrip yang dibangkitkan tidak menulis", temuan === null, temuan ?? "bersih");
+    cek("ia memakai curl", /curl /.test(skrip));
+    cek("ia mencatat hasilnya ke log", /GAGAL/.test(skrip) && /OK /.test(skrip));
+
+    /* Kuncinya datang dari variable CI, bukan ditulis harfiah — kalau harfiah,
+       memutar anon key kembali berarti menyunting kode, yang justru alasan
+       env.ts dibuat. */
+    cek("kuncinya dari variable CI, bukan ditulis di repo", /KEY="\$ANON"/.test(skrip));
+
+    console.log("\n--- kontrol negatif ---");
+    kontrol(
+      "-X POST yang disuntikkan ke skrip tertangkap",
+      cariTulis(skrip.replace("curl -fsS", "curl -X POST -fsS")) === null,
+    );
+    kontrol(
+      "anon key harfiah tertangkap",
+      /KEY="\$ANON"/.test(skrip.replace('KEY="$ANON"', 'KEY="eyJhbGciOiJIUzI1NiJ9.abc"')),
+    );
+  }
+}
+
 console.log(`\n${lulus} lulus, ${gagal} gagal — ${lulus + gagal} pemeriksaan`);
 if (gagal > 0) process.exit(1);

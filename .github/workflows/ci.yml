@@ -160,6 +160,52 @@ jobs:
       - name: Cap versi
         run: echo "${GITHUB_SHA}" > out/versi-ci.txt
 
+      # Skrip keepalive yang dipanggil cron Hostinger, ikut dikirim bersama
+      # bundle. Ia ada karena cron Hostinger membatasi perintahnya 255 karakter
+      # dan anon key sendiri sudah ~220 — `curl` lengkap tidak muat di satu
+      # baris crontab, jadi barisnya cuma memanggil berkas ini.
+      #
+      # ⚠️ DIBANGKITKAN di sini, bukan dikomit. Menuliskan anon key ke dalam
+      # berkas repo akan membatalkan alasan `env.ts` dibuat: memutar kunci
+      # berarti menyunting kode, dan cabang uji coba berarti menyunting berkas
+      # yang sama yang dipakai tim. Dari sini, memutar kunci = ganti repository
+      # variable lalu deploy ulang — persis jalur yang sudah berlaku untuk
+      # kredensial di dalam bundle.
+      #
+      # ⛔ HANYA MEMBACA. Tidak ada -X, tidak ada --data, tidak ada upsert.
+      # Ia jalan otomatis tiap hari tanpa ada yang menonton; kalau ia menulis,
+      # ia menulis ratusan kali setahun ke dokumen tim tanpa satu pun log merah.
+      # Dijaga `npm run probe:jaga`, yang menyisir blok di bawah ini.
+      #
+      # `%` aman di sini — pelarian `%` hanya berlaku pada baris crontab, bukan
+      # di dalam berkas skrip yang dipanggilnya.
+      - name: Bangkitkan skrip keepalive
+        env:
+          URL_SUPABASE: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          ANON: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          ID_DOKUMEN: ${{ vars.NEXT_PUBLIC_DOKUMEN_ID }}
+        run: |
+          ID_DOK="${ID_DOKUMEN:-sos-unit-economics}"
+          cat > out/jaga-supabase.sh <<SKRIP
+          #!/bin/sh
+          # Dibangkitkan CI dari repository variables. Jangan disunting di server:
+          # deploy berikutnya menimpanya. Sumbernya .github/workflows/ci.yml.
+          KEY="$ANON"
+          URL="$URL_SUPABASE"
+          ID="$ID_DOK"
+          LOG="\$HOME/jaga-supabase.log"
+          CAP="\$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          if curl -fsS -m 30 -o /dev/null -H "apikey: \$KEY" -H "Authorization: Bearer \$KEY" "\$URL/rest/v1/unit_economics?id=eq.\$ID&select=id"; then
+            echo "OK \$CAP" >> "\$LOG"
+          else
+            echo "GAGAL \$CAP" >> "\$LOG"
+          fi
+          tail -n 400 "\$LOG" > "\$LOG.tmp" && mv "\$LOG.tmp" "\$LOG"
+          SKRIP
+          chmod +x out/jaga-supabase.sh
+          echo "--- skrip yang dihasilkan (kunci disamarkan) ---"
+          sed "s|$ANON|<ANON_KEY>|g" out/jaga-supabase.sh
+
       - uses: actions/upload-artifact@v4
         with:
           name: out
