@@ -157,12 +157,13 @@ function KartuSKU({
         <BarisRincian label="OEM (biang jadi + pencampuran)">{rupiah(r.oem)}</BarisRincian>
 
         <KepalaRincian>Botol &amp; Packaging</KepalaRincian>
-        <BarisRincian label={`Botol (unit + perizinan ${persen(dok.asumsi.perizinanPct)})`}>
-          {rupiah(r.botol)}
+        <BarisRincian
+          label={`Botol (unit + perizinan ${persen(dok.asumsi.perizinanPct)} + freight)`}
+        >
+          {rupiah(r.botol + r.freight)}
         </BarisRincian>
         <BarisRincian label="Aksesoris + cap">{rupiah(r.aksesoris)}</BarisRincian>
         <BarisRincian label="Box packaging">{rupiah(r.box)}</BarisRincian>
-        <BarisRincian label="Freight forwarder">{rupiah(r.freight)}</BarisRincian>
 
         <KepalaRincian>Fulfillment</KepalaRincian>
         <BarisRincian label="Fulfillment cost">{rupiah(r.fulfillment)}</BarisRincian>
@@ -249,7 +250,9 @@ function TabelSkenario() {
 
   const otomatis = (ukuran: UkuranBotol) => {
     const u = unitEconomics(dok, ukuran);
-    return { fragrance: u.fragrance, botol: u.botol, aksesoris: u.aksesoris };
+    /* Freight ikut baris "Botol" — ia bukan lagi sesuatu yang bisa diedit
+       per skenario, mengikuti supplier & tarif freight yang sedang aktif. */
+    return { fragrance: u.fragrance, botol: u.botol + u.freight, aksesoris: u.aksesoris };
   };
 
   const dariSaatIni = (ukuran: UkuranBotol, nama: string): Skenario => {
@@ -261,7 +264,6 @@ function TabelSkenario() {
       harga: Math.round(u.harga),
       oem: Math.round(u.oem),
       box: Math.round(u.box),
-      freight: Math.round(u.freight),
       fulfillment: Math.round(u.fulfillment),
       royalti: Math.round(u.royalti),
     };
@@ -300,6 +302,7 @@ function TabelSkenario() {
                     <span className="flex items-center justify-end gap-1.5">
                       <IsianTeks
                         nilai={sc.nama}
+                        className="flex-1"
                         ariaLabel={`Nama skenario ${sc.nama}`}
                         onUbah={(t) => setSkenario(sc.id, (s) => ({ ...s, nama: t }))}
                       />
@@ -441,7 +444,7 @@ function BarisIsian({
 }: {
   label: string;
   daftar: Skenario[];
-  kunci: "harga" | "oem" | "box" | "freight" | "fulfillment" | "royalti";
+  kunci: "harga" | "oem" | "box" | "fulfillment" | "royalti";
   onUbah: (id: string, fn: (s: Skenario) => Skenario) => void;
 }) {
   return (
@@ -451,6 +454,7 @@ function BarisIsian({
         <td key={sc.id} className="td text-right">
           <IsianAngka
             nilai={sc[kunci]}
+            className="w-full"
             ariaLabel={`${label} ${sc.nama}`}
             onUbah={(n) => onUbah(sc.id, (s) => ({ ...s, [kunci]: n }))}
           />

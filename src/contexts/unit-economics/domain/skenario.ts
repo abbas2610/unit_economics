@@ -3,11 +3,17 @@
  *
  * ## Dua jenis baris, dan garis di antaranya yang penting
  *
- *   - **🔒 Otomatis** — fragrance, botol, aksesoris. Ikut asumsi & supplier yang
- *     sedang aktif untuk ukuran botol yang dipilih kolom itu. TIDAK disimpan di
- *     skenario; dihitung ulang tiap render.
- *   - **✎ Bisa diubah** — OEM, box, freight, fulfillment, royalti, harga jual.
+ *   - **🔒 Otomatis** — fragrance, botol (sudah termasuk freight), aksesoris.
+ *     Ikut asumsi & supplier yang sedang aktif untuk ukuran botol yang dipilih
+ *     kolom itu. TIDAK disimpan di skenario; dihitung ulang tiap render.
+ *   - **✎ Bisa diubah** — OEM, box, fulfillment, royalti, harga jual.
  *     Disimpan di skenario dan bebas diedit.
+ *
+ * Freight dulu ada di baris yang bisa diubah, dan itu berarti mengganti
+ * supplier atau tarif freight di tab lain tidak pernah sampai ke sini kalau
+ * skenarionya sudah pernah disentuh. Sekarang ia ikut baris "Botol" yang
+ * otomatis — sama seperti perizinan, ia bagian dari harga botol, bukan
+ * komponen yang berdiri sendiri untuk ditanyakan "kalau segini".
  *
  * Batas itu bukan selera. Baris otomatis adalah angka yang sudah punya sumber
  * kebenaran di tab lain; menyalinnya ke tiap skenario berarti mengubah supplier
@@ -24,7 +30,6 @@ import type { UkuranBotol } from "@/contexts/asumsi/domain/asumsi";
 export type KomponenSkenario = {
   oem: number;
   box: number;
-  freight: number;
   fulfillment: number;
   royalti: number;
 };
@@ -40,7 +45,6 @@ export type Skenario = KomponenSkenario & {
 export const BARIS_SKENARIO: ReadonlyArray<readonly [keyof KomponenSkenario, string]> = [
   ["oem", "OEM"],
   ["box", "Box Packaging"],
-  ["freight", "Freight Forwarder"],
   ["fulfillment", "Fulfillment"],
   ["royalti", "Royalti"],
 ] as const;
@@ -48,7 +52,7 @@ export const BARIS_SKENARIO: ReadonlyArray<readonly [keyof KomponenSkenario, str
 /** Label baris yang terkunci ke asumsi & supplier aktif. */
 export const BARIS_TERKUNCI = [
   ["fragrance", "Fragrance Oil"],
-  ["botol", "Botol (unit + perizinan)"],
+  ["botol", "Botol (unit + perizinan + freight)"],
   ["aksesoris", "Aksesoris + Cap"],
 ] as const;
 

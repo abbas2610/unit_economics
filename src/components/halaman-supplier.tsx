@@ -494,17 +494,15 @@ function TabelBanding({
       inv,
       satuan: biayaSatuan(s, kurs, perizinanPct),
       jadi,
-      perBotolJadi: jadi > 0 ? inv.total / jadi : 0,
     };
   });
+  /* ⚠️ "Termurah" HANYA diberikan pada biaya botol / unit.
+     Total investasi sengaja tidak diberi badge: dua supplier ber-MOQ berbeda
+     membelanjakan uang untuk jumlah botol yang berbeda, dan menobatkan yang
+     totalnya lebih kecil di atas dua qty yang tidak sama adalah cara tercepat
+     memilih vendor yang salah. Supplier yang seluruh harganya masih Rp0 dulu
+     selalu menang di baris itu. */
   const unitTermurah = Math.min(...baris.map((b) => b.satuan.totalLengkap));
-  /* ⚠️ "Termurah" HANYA diberikan pada biaya per botol terpakai.
-     Total investasi sengaja tidak lagi diberi badge: dua supplier ber-MOQ
-     berbeda membelanjakan uang untuk jumlah botol yang berbeda, dan menobatkan
-     yang totalnya lebih kecil di atas dua qty yang tidak sama adalah cara
-     tercepat memilih vendor yang salah. Supplier yang seluruh harganya masih
-     Rp0 dulu selalu menang di baris itu. */
-  const jadiTermurah = Math.min(...baris.filter((b) => b.jadi > 0).map((b) => b.perBotolJadi));
 
   const kolomHi = (id: string) => (id === terpilihId ? "bg-primary-subtle/50" : "");
 
@@ -652,24 +650,7 @@ function TabelBanding({
                 <span className={b.satuan.totalLengkap === unitTermurah ? "text-naik" : "text-fg"}>
                   {rupiah(b.satuan.totalLengkap)}
                 </span>
-              </td>
-            ))}
-          </tr>
-          <tr>
-            <td className="td font-semibold text-fg">
-              Biaya per botol terpakai
-              <span className="ml-1 font-normal text-fg-subtle">(total ÷ botol terisi)</span>
-            </td>
-            {baris.map((b) => (
-              <td
-                key={b.sup.id}
-                className={cx("td tabular text-right font-bold", kolomHi(b.sup.id))}
-                data-numeric
-              >
-                <span className={b.perBotolJadi === jadiTermurah ? "text-naik" : "text-fg"}>
-                  {b.jadi > 0 ? rupiah(b.perBotolJadi) : "—"}
-                </span>
-                {b.jadi > 0 && b.perBotolJadi === jadiTermurah ? (
+                {b.satuan.totalLengkap === unitTermurah ? (
                   <span className="badge ml-2 bg-success-bg text-success-fg">termurah</span>
                 ) : null}
               </td>
@@ -683,14 +664,8 @@ function TabelBanding({
           <strong>Total investasi tidak diberi badge &ldquo;termurah&rdquo;</strong>, dan itu
           disengaja: supplier ber-MOQ berbeda membelanjakan uang untuk jumlah botol yang
           berbeda, jadi dua angkanya bukan barang yang sama. Yang setara adalah{" "}
-          <strong>biaya per botol terpakai</strong> — total dibagi botol yang benar-benar
-          terisi, sehingga botol yang terpaksa dibeli karena MOQ ikut terhitung sebagai beban.
-          <br />
-          <br />
-          &ldquo;Termurah&rdquo; pada biaya per unit dan pada biaya per botol terpakai bisa
-          jatuh ke supplier yang <strong>berbeda</strong>, dan itu bukan kesalahan hitung: yang
-          satu menyerap molding dan kelebihan MOQ, yang lain tidak. Yang menentukan mana yang
-          relevan adalah berapa lama molding itu akan dipakai — satu batch, atau tiga tahun.
+          <strong>biaya botol / unit</strong> — harga satuan supplier termasuk freight, di
+          luar molding dan kelebihan MOQ.
         </Catatan>
       </div>
     </BungkusTabel>
@@ -703,8 +678,6 @@ type Kolom = {
   satuan: ReturnType<typeof biayaSatuan>;
   /** Botol yang benar-benar terisi kalau supplier ini dipakai. */
   jadi: number;
-  /** Total investasi ÷ botol terisi. Satu-satunya angka yang setara antar kolom. */
-  perBotolJadi: number;
 };
 
 function Baris({

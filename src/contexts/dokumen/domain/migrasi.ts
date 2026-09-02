@@ -191,7 +191,6 @@ const skenarioDari = (v: unknown, urut: number): Skenario => {
     harga: num(s.harga ?? s.price, 0),
     oem: num(s.oem, 0),
     box: num(s.box, 0),
-    freight: num(s.freight, 0),
     fulfillment: num(s.fulfillment ?? s.fulfill, 0),
     royalti: num(s.royalti ?? s.royalty, 0),
   };

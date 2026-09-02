@@ -119,10 +119,18 @@ console.log("\n=== 1. Tabel menyebut qty DIBELI, bukan MOQ ===");
   cek("baris pertama tabel adalah 'Qty dibeli'", /Qty dibeli/i.test(teks));
   cek("MOQ turun jadi keterangan, bukan baris sendiri", /MOQ .*(mengikat|tidak mengikat)/i.test(teks));
   cek("ada baris 'Botol terisi'", /Botol terisi/i.test(teks));
-  cek("ada baris setara 'Biaya per botol terpakai'", /Biaya per botol terpakai/i.test(teks));
   cek(
     "biaya botol per unit menyebut freight",
     /Biaya botol \/ unit[\s\S]{0,40}termasuk freight/i.test(teks),
+  );
+  cek(
+    "badge 'termurah' menempel di baris 'Biaya botol / unit'",
+    await hal
+      .locator("tr", { hasText: "Biaya botol / unit" })
+      .first()
+      .locator("text=termurah")
+      .count()
+      .then((n) => n > 0),
   );
 }
 kontrol(
