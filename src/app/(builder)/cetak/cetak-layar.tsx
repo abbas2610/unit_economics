@@ -337,17 +337,6 @@ function TabelBandingRingkas({
   });
   const termurah = Math.min(...baris.map((b) => b.satuan.totalLengkap));
 
-  const Baris2 = ({ label, render, tebal }: { label: string; render: (b: (typeof baris)[number]) => ReactNode; tebal?: boolean }) => (
-    <tr>
-      <td className={tebal ? "td font-bold" : "td"}>{label}</td>
-      {baris.map((b) => (
-        <td key={b.sup.id} className={tebal ? "td text-right font-bold" : "td text-right"}>
-          {render(b)}
-        </td>
-      ))}
-    </tr>
-  );
-
   return (
     <table className="w-full border-collapse">
       <thead>
@@ -361,13 +350,14 @@ function TabelBandingRingkas({
         </tr>
       </thead>
       <tbody>
-        <Baris2 label="Qty dibeli" render={(b) => pcs(b.inv.qty)} />
-        <Baris2 label="Botol terisi" render={(b) => pcs(b.jadi)} />
-        <Baris2 label="Molding (sekali bayar)" render={(b) => rupiah(b.inv.molding)} />
-        <Baris2 label="Biaya variable + perizinan / pcs" render={(b) => rupiah(b.satuan.total)} />
-        <Baris2 label="Freight / pcs" render={(b) => rupiah(b.satuan.freight)} />
-        <Baris2 label="Total investasi" render={(b) => rupiah(b.inv.total)} tebal />
-        <Baris2
+        <BarisBanding baris={baris} label="Qty dibeli" render={(b) => pcs(b.inv.qty)} />
+        <BarisBanding baris={baris} label="Botol terisi" render={(b) => pcs(b.jadi)} />
+        <BarisBanding baris={baris} label="Molding (sekali bayar)" render={(b) => rupiah(b.inv.molding)} />
+        <BarisBanding baris={baris} label="Biaya variable + perizinan / pcs" render={(b) => rupiah(b.satuan.total)} />
+        <BarisBanding baris={baris} label="Freight / pcs" render={(b) => rupiah(b.satuan.freight)} />
+        <BarisBanding baris={baris} label="Total investasi" render={(b) => rupiah(b.inv.total)} tebal />
+        <BarisBanding
+          baris={baris}
           label="Biaya botol / unit (termasuk freight)"
           tebal
           render={(b) => (
@@ -383,6 +373,38 @@ function TabelBandingRingkas({
         />
       </tbody>
     </table>
+  );
+}
+
+type BarisBandingItem = {
+  sup: Supplier;
+  inv: ReturnType<typeof investasiSupplier>;
+  satuan: ReturnType<typeof biayaSatuan>;
+  jadi: number;
+};
+
+/** Satu baris tabel `TabelBandingRingkas` - komponen sendiri di luar render,
+ *  bukan ditutup di dalamnya, supaya tidak dibuat ulang tiap render. */
+function BarisBanding({
+  baris,
+  label,
+  render,
+  tebal,
+}: {
+  baris: BarisBandingItem[];
+  label: string;
+  render: (b: BarisBandingItem) => ReactNode;
+  tebal?: boolean;
+}) {
+  return (
+    <tr>
+      <td className={tebal ? "td font-bold" : "td"}>{label}</td>
+      {baris.map((b) => (
+        <td key={b.sup.id} className={tebal ? "td text-right font-bold" : "td text-right"}>
+          {render(b)}
+        </td>
+      ))}
+    </tr>
   );
 }
 

@@ -193,7 +193,6 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
             sup={sup}
             terpilih={sup.id === terpilihId}
             diminta={diminta}
-            kapasitas={kapasitas}
             kurs={dok.asumsi.kurs}
             perizinanPct={dok.asumsi.perizinanPct}
             onPakai={() => {
@@ -249,7 +248,6 @@ function KartuSupplier({
   sup,
   terpilih,
   diminta,
-  kapasitas,
   kurs,
   perizinanPct,
   onPakai,
@@ -260,7 +258,6 @@ function KartuSupplier({
   sup: Supplier;
   terpilih: boolean;
   diminta: number;
-  kapasitas: number;
   kurs: number;
   perizinanPct: number;
   onPakai: () => void;
