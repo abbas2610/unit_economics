@@ -35,6 +35,7 @@ import {
   NilaiTurunan,
   Petak,
   Rincian,
+  Sublabel,
   Tombol,
   TombolHapus,
   Angka,
@@ -62,7 +63,13 @@ export function AsumsiLayar() {
 
       <Petak>
         <Kartu>
-          <JudulBlok judul="Parameter Global" sub="Berlaku untuk seluruh halaman." />
+          <JudulBlok
+            nomor={1}
+            judul="Parameter Global"
+            sub="Berlaku untuk seluruh halaman."
+          />
+
+          <Sublabel>Kurs &amp; Ongkir</Sublabel>
           <div className="grid gap-4 sm:grid-cols-2">
             <Bidang label="Kurs USD → IDR">
               <IsianAngka
@@ -81,8 +88,12 @@ export function AsumsiLayar() {
                 ariaLabel="Tarif freight per CBM"
               />
             </Bidang>
+          </div>
+
+          <Sublabel>Biaya OEM per Botol</Sublabel>
+          <div className="grid gap-4 sm:grid-cols-2">
             <Bidang
-              label="Biaya OEM - Botol Kecil"
+              label="Botol Kecil"
               petunjuk="(termasuk alkohol, aquadest, pencampuran)"
             >
               <IsianAngka
@@ -93,7 +104,7 @@ export function AsumsiLayar() {
               />
             </Bidang>
             <Bidang
-              label="Biaya OEM - Botol Besar"
+              label="Botol Besar"
               petunjuk="(termasuk alkohol, aquadest, pencampuran)"
             >
               <IsianAngka
@@ -103,6 +114,10 @@ export function AsumsiLayar() {
                 ariaLabel="Biaya OEM botol besar"
               />
             </Bidang>
+          </div>
+
+          <Sublabel>Rasio &amp; Pajak</Sublabel>
+          <div className="grid gap-4 sm:grid-cols-2">
             <Bidang label="Packing efficiency">
               <IsianAngka
                 nilai={asumsi.packingEfficiency}
@@ -139,7 +154,34 @@ export function AsumsiLayar() {
         </Kartu>
 
         <Kartu>
-          <JudulBlok judul="Fulfillment & Packaging" sub="Komponen tetap per botol." />
+          <JudulBlok
+            nomor={2}
+            judul="Ukuran Botol & Fulfillment"
+            sub="Yang dipilih sendiri, bukan yang datang dari luar."
+          />
+
+          <Sublabel>Ukuran Botol</Sublabel>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Bidang label="Botol kecil">
+              <IsianAngka
+                nilai={asumsi.mlBotolKecil}
+                akhiran="ML"
+                ariaLabel="Ukuran botol kecil"
+                onUbah={(n) => setAsumsi("mlBotolKecil", n)}
+              />
+            </Bidang>
+            <Bidang label="Botol besar">
+              <IsianAngka
+                nilai={asumsi.mlBotolBesar}
+                akhiran="ML"
+                ariaLabel="Ukuran botol besar"
+                onUbah={(n) => setAsumsi("mlBotolBesar", n)}
+              />
+            </Bidang>
+          </div>
+          <p className="mt-2 text-meta text-fg-subtle">Isi bebas - mL berapa pun bisa dipakai.</p>
+
+          <Sublabel>Kemasan &amp; Fulfillment</Sublabel>
           <div className="grid gap-4 sm:grid-cols-2">
             <Bidang label="Box packaging">
               <IsianAngka
@@ -166,28 +208,6 @@ export function AsumsiLayar() {
               />
             </Bidang>
           </div>
-
-          <div className="mt-6">
-            <JudulBlok judul="Ukuran Botol" sub="Isi bebas - mL berapa pun bisa dipakai." />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Bidang label="Botol kecil">
-                <IsianAngka
-                  nilai={asumsi.mlBotolKecil}
-                  akhiran="ML"
-                  ariaLabel="Ukuran botol kecil"
-                  onUbah={(n) => setAsumsi("mlBotolKecil", n)}
-                />
-              </Bidang>
-              <Bidang label="Botol besar">
-                <IsianAngka
-                  nilai={asumsi.mlBotolBesar}
-                  akhiran="ML"
-                  ariaLabel="Ukuran botol besar"
-                  onUbah={(n) => setAsumsi("mlBotolBesar", n)}
-                />
-              </Bidang>
-            </div>
-          </div>
         </Kartu>
       </Petak>
 
@@ -195,8 +215,9 @@ export function AsumsiLayar() {
       <div className="mt-4">
         <Kartu>
           <JudulBlok
+            nomor={3}
             judul="Varian Fragrance Oil"
-            sub="Harga biang parfum dari Perfume House (USD). Unit economics memakai rata-ratanya - selisih antar varian di bawah 0,02% terhadap COGS. Jumlah varian tidak dibatasi tiga, dan tiap varian menambah biaya perizinan BPOM + Halal."
+            sub="Harga biang parfum dari Perfume House (USD). Unit economics memakai rata-ratanya - selisih antar varian di bawah 0,02% terhadap COGS. Jumlah varian tidak dibatasi tiga."
           />
 
           <div className="flex flex-col gap-2.5">
@@ -293,44 +314,48 @@ export function AsumsiLayar() {
               </BarisRincian>
             </Rincian>
           </div>
+        </Kartu>
+      </div>
 
-          <div className="mt-6">
-            <JudulBlok
-              judul="Biaya Perizinan per Varian"
-              sub="BPOM & Sertifikat Halal dibayar per varian produk - otomatis dikalikan jumlah varian di atas."
-            />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Bidang label="Perizinan BPOM / varian">
-                <IsianAngka
-                  nilai={legalPerVarian.bpom}
-                  awalan="Rp"
-                  ariaLabel="Perizinan BPOM per varian"
-                  onUbah={(n) =>
-                    ubah((d) => ({ ...d, legalPerVarian: { ...d.legalPerVarian, bpom: n } }))
-                  }
-                />
-              </Bidang>
-              <Bidang label="Sertifikat Halal / varian">
-                <IsianAngka
-                  nilai={legalPerVarian.halal}
-                  awalan="Rp"
-                  ariaLabel="Sertifikat halal per varian"
-                  onUbah={(n) =>
-                    ubah((d) => ({ ...d, legalPerVarian: { ...d.legalPerVarian, halal: n } }))
-                  }
-                />
-              </Bidang>
-            </div>
-            <div className="mt-3">
-              <Rincian>
-                <BarisRincian label="Biaya per varian (BPOM + Halal)">
-                  {rupiah(perVarian)}
-                </BarisRincian>
-                <BarisRincian label={`Total Perizinan Varian (${varian.length} varian)`} jenis="subtotal">
-                  {rupiah(legalTotal)}
-                </BarisRincian>
-              </Rincian>
-            </div>
+      {/* ────────────────────────── perizinan per varian ───────────────── */}
+      <div className="mt-4">
+        <Kartu>
+          <JudulBlok
+            nomor={4}
+            judul="Biaya Perizinan per Varian"
+            sub={`BPOM & Sertifikat Halal dibayar per varian produk - otomatis dikalikan jumlah varian di atas (${varian.length} varian).`}
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Bidang label="Perizinan BPOM / varian">
+              <IsianAngka
+                nilai={legalPerVarian.bpom}
+                awalan="Rp"
+                ariaLabel="Perizinan BPOM per varian"
+                onUbah={(n) =>
+                  ubah((d) => ({ ...d, legalPerVarian: { ...d.legalPerVarian, bpom: n } }))
+                }
+              />
+            </Bidang>
+            <Bidang label="Sertifikat Halal / varian">
+              <IsianAngka
+                nilai={legalPerVarian.halal}
+                awalan="Rp"
+                ariaLabel="Sertifikat halal per varian"
+                onUbah={(n) =>
+                  ubah((d) => ({ ...d, legalPerVarian: { ...d.legalPerVarian, halal: n } }))
+                }
+              />
+            </Bidang>
+          </div>
+          <div className="mt-3">
+            <Rincian>
+              <BarisRincian label="Biaya per varian (BPOM + Halal)">
+                {rupiah(perVarian)}
+              </BarisRincian>
+              <BarisRincian label={`Total Perizinan Varian (${varian.length} varian)`} jenis="subtotal">
+                {rupiah(legalTotal)}
+              </BarisRincian>
+            </Rincian>
           </div>
         </Kartu>
       </div>
@@ -339,10 +364,12 @@ export function AsumsiLayar() {
       <div className="mt-4">
         <Kartu>
           <JudulBlok
+            nomor={5}
             judul="Komposisi & Hasil Campuran"
             sub="Dari total fragrance oil yang dibeli di atas: campuran jadi berapa liter, dan bisa jadi berapa botol. Angka ini yang dipakai sebagai qty batch di Initial Investment - ia diturunkan, tidak diisi manual."
           />
 
+          <Sublabel>Komposisi</Sublabel>
           <div className="grid gap-4 sm:grid-cols-3">
             <Bidang label="Komposisi Fragrance Oil">
               <IsianAngka
@@ -395,7 +422,8 @@ export function AsumsiLayar() {
             </Rincian>
           </div>
 
-          <div className="mt-5 grid gap-5 md:grid-cols-2">
+          <Sublabel>Alokasi ke Botol</Sublabel>
+          <div className="grid gap-5 md:grid-cols-2">
             <div>
               <Bidang
                 label="Alokasi volume ke botol besar"
@@ -445,6 +473,7 @@ export function AsumsiLayar() {
       <div className="mt-4">
         <Kartu>
           <JudulBlok
+            nomor={6}
             judul="Freight Forwarder per Botol (default)"
             sub="Dihitung dari dimensi botol, packing efficiency, dan tarif per CBM di atas. Ini nilai default yang diwarisi supplier BARU - supplier yang sudah ada menyimpan angkanya sendiri dan tidak ikut berubah."
           />

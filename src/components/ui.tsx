@@ -52,6 +52,7 @@ export function JudulBlok({
   judul,
   sub,
   aksen,
+  nomor,
 }: {
   judul: ReactNode;
   sub?: ReactNode;
@@ -59,14 +60,33 @@ export function JudulBlok({
    *  di kiri + judul berwarna, dipakai untuk satu bagian yang memang beda
    *  perannya (mis. area yang seluruhnya bisa diedit bebas), bukan hiasan. */
   aksen?: boolean;
+  /** Chip bernomor di depan judul - urutan sub-langkah di dalam satu tab,
+   *  bukan urutan tab (itu sudah dipegang topbar). Sama gayanya dengan
+   *  chip nomor di `TAB` topbar, supaya bahasa visualnya konsisten. */
+  nomor?: number;
 }) {
   return (
-    <div className={cx("mb-4", aksen && "border-l-4 border-primary pl-3")}>
-      <h2 className={cx("text-card-title", aksen ? "text-primary" : "text-fg")}>{judul}</h2>
-      {sub ? <p className="mt-1 text-meta text-fg-subtle">{sub}</p> : null}
+    <div className={cx("mb-4 flex items-start gap-2.5", aksen && "border-l-4 border-primary pl-3")}>
+      {nomor ? (
+        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-subtle text-badge font-bold text-primary">
+          {nomor}
+        </span>
+      ) : null}
+      <div>
+        <h2 className={cx("text-card-title", aksen ? "text-primary" : "text-fg")}>{judul}</h2>
+        {sub ? <p className="mt-1 text-meta text-fg-subtle">{sub}</p> : null}
+      </div>
     </div>
   );
 }
+
+/** Label pengelompokan bidang isian di dalam satu kartu - abu-abu, bukan
+ *  primary: primary sudah dipakai `KepalaRincian` untuk menandai "ini hasil
+ *  turunan", jadi warnanya sengaja beda supaya "kelompok isian" dan "hasil
+ *  hitung" tidak pernah tertukar sekilas. */
+export const Sublabel = ({ children }: { children: ReactNode }) => (
+  <p className="mb-2 mt-5 text-label uppercase text-fg-muted first:mt-0">{children}</p>
+);
 
 export const Petak = ({ kolom = 2, children }: { kolom?: 2 | 3; children: ReactNode }) => (
   <div className={cx("grid gap-4", kolom === 3 ? "md:grid-cols-3" : "md:grid-cols-2")}>
