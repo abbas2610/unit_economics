@@ -21,6 +21,7 @@
     "probe:dokumen": "node --import ./scripts/ts-register.mjs scripts/probe-dokumen.mts",
     "probe:pemulihan": "node --import ./scripts/ts-register.mjs scripts/probe-pemulihan.mts",
     "probe:pembelian": "node --import ./scripts/ts-register.mjs scripts/probe-pembelian.mts",
+    "probe:riwayat": "node --import ./scripts/ts-register.mjs scripts/probe-riwayat.mts",
     "probe:layar-builder": "node scripts/probe-builder.mjs http://localhost:4880/perfume-app",
     "probe:layar-pembelian": "node scripts/probe-pembelian-layar.mjs http://localhost:4880/perfume-app",
     "probe:rls": "node scripts/probe-rls.mjs",

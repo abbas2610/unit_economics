@@ -12,6 +12,8 @@ import { bacaDokumen } from "../domain/migrasi";
 
 const KUNCI = "sos_ue_v1";
 
+export type MuatanLokal = { dokumen: Dokumen; payloadMentah: unknown };
+
 /**
  * `null` kalau belum ada apa pun tersimpan — bukan dokumen awal.
  *
@@ -19,12 +21,13 @@ const KUNCI = "sos_ue_v1";
  * menunggu muatan dari Supabase, sementara dokumen awal adalah jawaban akhir
  * yang akan menimpanya.
  */
-export function muatLokal(): Dokumen | null {
+export function muatLokal(): MuatanLokal | null {
   if (typeof window === "undefined") return null;
   try {
     const mentah = window.localStorage.getItem(KUNCI);
     if (!mentah) return null;
-    return bacaDokumen(JSON.parse(mentah));
+    const payloadMentah = JSON.parse(mentah);
+    return { dokumen: bacaDokumen(payloadMentah), payloadMentah };
   } catch {
     /* Payload rusak (quota terlampaui saat menulis, atau disunting tangan)
        tidak boleh menghalangi halaman terbuka. */

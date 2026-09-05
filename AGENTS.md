@@ -191,3 +191,17 @@ dokumen.
   kode sumber berarti mempercayai bahwa jalur yang dibaca sama dengan jalur yang
   jalan, dan itu asumsi yang sudah pernah salah di sini (pemeriksa CI yang
   mencari kata `supabase.co`).
+
+- **Mengisi array kosong dengan nilai contoh secara diam-diam = data asli yang
+  hilang tanpa satu pun tanda.** `dariV1()` di `migrasi.ts` mengganti
+  `supplierKecil`/`supplierBesar`/`varian` yang kosong dengan `awal.*` supaya
+  layar tidak pernah benar-benar kosong — niatnya baik, tapi begitu itu
+  tersimpan lagi (kurs atau field lain diedit dan disimpan), nilai contoh itu
+  jadi permanen seolah data asli. Persis begini nama supplier sungguhan
+  ("Christine", "Michael") berubah jadi "Gelas Bening (A)" / "Model Batu (B)"
+  di baris produksi, tanpa error dan tanpa satu pun log — sistemnya memang
+  tidak punya riwayat versi sama sekali sampai titik itu. Ditambal dua arah:
+  `deteksiAnomaliV1()` yang bersuara (bukan diam) kalau ini terjadi lagi, dan
+  `supabase/migrations/0002_riwayat.sql` yang menyimpan versi SEBELUM tiap
+  simpan lewat trigger Postgres — bukan kode aplikasi, supaya tidak bisa
+  dilewati bug yang sama.

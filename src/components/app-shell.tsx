@@ -123,15 +123,24 @@ function Perkakas() {
         type="button"
         className={tombol}
         onClick={() => {
-          /* `confirm()` dan bukan dialog sendiri: ini satu-satunya aksi merusak
-             di aplikasi, dipakai beberapa kali setahun, dan dialog bawaan
-             browser tidak bisa salah dirender maupun terlewat fokusnya. */
-          if (window.confirm("Reset semua angka ke nilai awal? Data tim ikut tertimpa."))
-            ganti(dokumenAwal(), "Direset ke angka awal");
+          /* `prompt()`, bukan `confirm()`: ini satu-satunya aksi merusak di
+             aplikasi, dan sebelumnya cukup satu klik salah + satu Enter reflex
+             di dialog OK/Cancel. Mengetik "RESET" ulang tidak bisa kejadian
+             tanpa sengaja - dan dialog bawaan browser tetap dipakai karena ia
+             tidak bisa salah dirender maupun terlewat fokusnya. Tidak ada undo
+             di baliknya: baca supabase/migrations/0002_riwayat.sql kalau ini
+             sampai tertekan keliru - versi sebelumnya ada di tabel riwayat. */
+          const jawaban = window.prompt(
+            'Reset MENGHAPUS seluruh angka tim dan tidak bisa dibatalkan dari sini.\n\nKetik RESET (huruf besar semua) untuk melanjutkan:',
+          );
+          if (jawaban === "RESET") ganti(dokumenAwal(), "Direset ke angka awal");
         }}
       >
         Reset
       </button>
+      <a href={tautanTab("/riwayat")} className={tombol}>
+        Riwayat
+      </a>
       <a
         href={tautanTab("/cetak")}
         className="flex h-control-sm items-center justify-center rounded-sm bg-primary px-2.5 text-meta font-semibold text-white hover:bg-primary-hover"

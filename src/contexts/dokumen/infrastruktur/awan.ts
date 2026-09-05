@@ -29,7 +29,7 @@ import { bacaDokumen } from "../domain/migrasi";
 const TABEL = "unit_economics";
 
 export type MuatanAwan =
-  | { jenis: "ada"; dokumen: Dokumen; diperbaruiPada: string }
+  | { jenis: "ada"; dokumen: Dokumen; payloadMentah: unknown; diperbaruiPada: string }
   | { jenis: "kosong" }
   | { jenis: "mati" }
   | { jenis: "gagal"; pesan: string };
@@ -56,11 +56,38 @@ export async function muatDariAwan(): Promise<MuatanAwan> {
     return {
       jenis: "ada",
       dokumen: bacaDokumen(data.payload),
+      payloadMentah: data.payload,
       diperbaruiPada: String(data.updated_at ?? ""),
     };
   } catch (e) {
     return { jenis: "gagal", pesan: e instanceof Error ? e.message : String(e) };
   }
+}
+
+export type BarisRiwayat = { payload: unknown; updatedAt: string; disalinPada: string };
+
+/**
+ * Snapshot versi lama, ditulis trigger `simpan_riwayat_unit_economics()` di
+ * supabase/migrations/0002_riwayat.sql — bukan kode aplikasi ini. Payload
+ * mentah dikembalikan apa adanya (bukan `bacaDokumen()`) supaya halaman
+ * Riwayat bisa mem-parse tiap versi dengan bentuknya sendiri-sendiri; migrasi
+ * dokumen tetap satu pintu (`bacaDokumen`), dipanggil pemanggil fungsi ini.
+ */
+export async function muatRiwayat(limit = 100): Promise<BarisRiwayat[]> {
+  const supa = klienBrowser();
+  if (!supa) return [];
+  const { data, error } = await supa
+    .from("unit_economics_riwayat")
+    .select("payload,updated_at,disalin_pada")
+    .eq("dokumen_id", ID_DOKUMEN)
+    .order("disalin_pada", { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  return data.map((r) => ({
+    payload: r.payload,
+    updatedAt: String(r.updated_at ?? ""),
+    disalinPada: String(r.disalin_pada ?? ""),
+  }));
 }
 
 export type HasilSimpan =
@@ -92,7 +119,7 @@ export async function simpanKeAwan(dok: Dokumen): Promise<HasilSimpan> {
  * ulang efeknya, dan yang terlihat cuma halaman yang makin lambat.
  */
 export function langgananDokumen(
-  saatBerubah: (dok: Dokumen, diperbaruiPada: string) => void,
+  saatBerubah: (dok: Dokumen, payloadMentah: unknown, diperbaruiPada: string) => void,
 ): () => void {
   const supa = klienBrowser();
   if (!supa) return () => {};
@@ -110,7 +137,7 @@ export function langgananDokumen(
       (pesan) => {
         const baris = pesan.new as { payload?: unknown; updated_at?: string } | null;
         if (!baris?.payload) return;
-        saatBerubah(bacaDokumen(baris.payload), String(baris.updated_at ?? ""));
+        saatBerubah(bacaDokumen(baris.payload), baris.payload, String(baris.updated_at ?? ""));
       },
     )
     .subscribe();

@@ -152,6 +152,28 @@ dijaga, yang dibutuhkan Supabase Auth — bukan kebijakan yang lebih pintar.
 > yang murah; ia tidak menutup lubang di atas, tapi ia menutup akses dari salinan
 > HTML lama yang mungkin masih tersimpan di laptop orang.
 
+### Riwayat versi — `unit_economics_riwayat`
+
+Karena "yang terakhir menulis menang" (lihat di bawah) berarti satu simpanan
+yang salah menimpa PENUH tanpa jejak, migrasi
+[`0002_riwayat.sql`](../supabase/migrations/0002_riwayat.sql) menambah tabel
+kedua yang menyimpan snapshot versi LAMA sebelum tiap `UPDATE` ke
+`unit_economics` — ditulis trigger Postgres (`security definer`), bukan kode
+aplikasi, supaya tidak bisa dilewati bug maupun sesi klien yang terputus di
+tengah simpan.
+
+Anon/authenticated cuma dapat kebijakan `SELECT` (dibatasi ke `dokumen_id`
+yang sama seperti baris utama) — tidak ada `INSERT`/`UPDATE`/`DELETE` untuk
+siapa pun; jalur satu-satunya masuk ke tabel ini memang lewat trigger.
+Dibaca dari halaman **Riwayat** di aplikasi (tab "Riwayat" di topbar), yang
+membandingkan tiap versi dengan `diffDokumen()` (`src/bersama/diff.ts`) dan
+menampilkan APA yang berubah, bukan cuma KAPAN.
+
+Migrasi ini **belum otomatis dijalankan** — seperti 0001, ditempel manual ke
+SQL Editor Supabase. Sampai dijalankan, tabelnya belum ada dan halaman Riwayat
+akan menampilkan daftar kosong (bukan error — `muatRiwayat()` mengembalikan
+larik kosong kalau query gagal).
+
 ### Konflik: yang terakhir menulis menang
 
 Tidak ada penggabungan. Dua orang yang menyunting kolom berbeda pada saat yang

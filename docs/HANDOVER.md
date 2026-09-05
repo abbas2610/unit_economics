@@ -144,23 +144,37 @@ tersendiri: ia menambah layar login, dan export statis tidak punya server untuk
 menyegarkan sesi — jadi ia juga memaksa keputusan ulang soal `output: "export"`.
 Jangan dikerjakan setengah.
 
-### Riwayat versi dokumen
+### ✅ Riwayat versi dokumen — SELESAI
 
-Tidak ada. Yang terakhir menulis menang, dan yang tertimpa tidak bisa
-dikembalikan.
+Ini dulu ditulis "tidak ada — yang terakhir menulis menang, dan yang tertimpa
+tidak bisa dikembalikan", dan itu yang sungguh terjadi: dokumen supplier tim
+berubah jadi nilai contoh (`Gelas Bening (A)`, dll — lihat `supplierAwal()`)
+tanpa satu pun jejak, kemungkinan besar lewat `dariV1()` di `migrasi.ts` yang
+diam-diam mengisi array wajib yang kosong dengan nilai contoh alih-alih
+membiarkannya kosong atau bersuara.
 
-⚠️ **Tombol Export/Import JSON (dulu satu-satunya cadangan manual) sudah
-dihapus dari topbar** atas permintaan tim — dianggap berlebih begitu Supabase
-jadi sumber kebenaran bersama. Konsekuensinya: kalau satu penulisan yang salah
-menimpa dokumen bersama, **sekarang tidak ada jalan mundur sama sekali**, bukan
-cuma "kalau kebetulan ada yang sempat export manual". `bacaDokumen()` di
-`migrasi.ts` masih menerima kedua bentuk payload (jadi berkas JSON lama masih
-bisa di-import lewat DevTools/console kalau darurat), tapi tidak ada lagi
-tombolnya di UI.
+Ditambal dua lapis, bukan satu:
 
-Kalau ini jadi masalah, yang paling murah: kolom `riwayat jsonb[]` yang menyimpan
-sepuluh versi terakhir beserta `updated_at`-nya. Bukan `git`-like, cukup "kembali
-ke kemarin sore" — dan sekarang jadi satu-satunya jalan mundur yang tersisa.
+1. **`supabase/migrations/0002_riwayat.sql`** — tabel `unit_economics_riwayat`,
+   diisi trigger Postgres (bukan kode aplikasi) yang menyalin baris LAMA
+   sebelum tiap `UPDATE`. Halaman **Riwayat** di topbar membacanya dan
+   menampilkan `diffDokumen()` antar versi — lihat
+   [INFRASTRUKTUR.md](INFRASTRUKTUR.md) → "Riwayat versi".
+2. **`deteksiAnomaliV1()`** di `migrasi.ts` — dipanggil `dokumen-provider.tsx`
+   di samping `bacaDokumen()` tiap kali dokumen dimuat (awan, lokal, atau
+   siaran realtime). Kalau array wajib (varian/supplier) kosong pada payload
+   berbentuk v1 — kondisi yang seharusnya mustahil lewat UI mana pun — dia
+   memicu `window.alert()` yang tidak hilang sendiri, bukan diam-diam ditambal.
+
+⚠️ Migrasi `0002` **belum otomatis ter-apply** — sama seperti `0001`, ditempel
+manual ke SQL Editor Supabase. Sampai itu dijalankan, halaman Riwayat cuma
+menampilkan daftar kosong (bukan error).
+
+Tombol Export/Import JSON tetap tidak ada di topbar (dihapus atas permintaan
+tim, dianggap berlebih begitu Supabase jadi sumber kebenaran bersama) —
+`bacaDokumen()` masih menerima kedua bentuk payload kalau perlu di-import
+lewat DevTools/console, tapi jalur pemulihan utama sekarang tabel riwayat di
+atas, bukan berkas JSON manual.
 
 ### Penggabungan konflik
 

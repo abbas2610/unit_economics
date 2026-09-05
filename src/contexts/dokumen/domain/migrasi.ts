@@ -385,6 +385,46 @@ function dariV1(payload: Rekaman): Dokumen {
 }
 
 /**
+ * Anomali struktural pada payload berbentuk v1 — array WAJIB (varian,
+ * supplier) yang kosong atau bukan array sama sekali.
+ *
+ * Ini seharusnya MUSTAHIL lewat jalur UI mana pun: `hapus()` di
+ * `halaman-supplier.tsx` menolak mengosongkan supplier sampai nol, dan
+ * dokumen yang benar-benar baru tidak pernah sampai ke `dariV1()` — ia
+ * ditangani `muatDariAwan()` lewat cabang "kosong" sebelum sempat jadi
+ * payload v1 sama sekali.
+ *
+ * Kalau salah satu tetap kosong, `dariV1()` di atas MENGISINYA dengan nilai
+ * contoh (`awal.*`) supaya layar tidak pernah benar-benar kosong — tapi
+ * mengisi diam-diam berarti nilai contoh itu bisa tersimpan lagi seolah data
+ * asli begitu ada yang menyunting apa pun setelahnya dan menyimpan, dan itu
+ * yang pernah terjadi: supplier sungguhan berubah jadi "Gelas Bening (A)" /
+ * "Model Batu (B)" tanpa satu pun tanda di layar.
+ *
+ * Dipisah dari `bacaDokumen()` supaya tanda tangannya tidak berubah untuk
+ * seluruh pemanggil yang sudah ada — pemanggil yang peduli memanggil ini di
+ * SAMPING `bacaDokumen()`, dengan payload MENTAH yang sama, lalu menampilkan
+ * hasilnya sebagai peringatan yang tidak bisa dilewatkan begitu saja.
+ */
+export function deteksiAnomaliV1(payload: unknown): string[] {
+  const p = objek(payload);
+  if (Object.keys(p).length === 0) return []; // dokumen benar-benar baru
+  if (p.base !== undefined && p.asumsi === undefined) return []; // v0, wajar kosong
+
+  const peringatan: string[] = [];
+  if (larik(p.varian).length === 0) {
+    peringatan.push("Daftar varian fragrance kosong di dokumen yang datang — nilai contoh dipakai sementara.");
+  }
+  if (larik(p.supplierKecil).length === 0) {
+    peringatan.push("Daftar supplier botol kecil kosong di dokumen yang datang — nilai contoh dipakai sementara.");
+  }
+  if (larik(p.supplierBesar).length === 0) {
+    peringatan.push("Daftar supplier botol besar kosong di dokumen yang datang — nilai contoh dipakai sementara.");
+  }
+  return peringatan;
+}
+
+/**
  * Satu-satunya pintu masuk dokumen dari luar aplikasi.
  *
  * Tidak pernah melempar. Payload yang tidak dikenali → dokumen awal, karena

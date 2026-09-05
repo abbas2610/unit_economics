@@ -181,3 +181,23 @@ export function rupiahRingkas(nilai: number): string {
   if (abs >= 1e6) return tanda + "Rp" + rapikan(desimal(abs / 1e6, 1)) + " jt";
   return rupiah(n);
 }
+
+const BULAN = [
+  "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
+  "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
+];
+const dua = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * Stempel ISO → `"6 Sep 2026, 21:05 WIB"`, TANPA `Intl`/`toLocaleString` —
+ * lihat catatan di puncak berkas ini. Offset WIB (+7 jam) dijumlahkan manual
+ * lalu dibaca lewat getter UTC, supaya hasilnya sama persis di mana pun
+ * viewer berada — bukan cuma menghindari Node vs browser, tapi juga browser
+ * yang jam sistemnya sendiri diset ke zona waktu lain.
+ */
+export function waktu(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const w = new Date(d.getTime() + 7 * 60 * 60 * 1000);
+  return `${w.getUTCDate()} ${BULAN[w.getUTCMonth()]} ${w.getUTCFullYear()}, ${dua(w.getUTCHours())}:${dua(w.getUTCMinutes())} WIB`;
+}

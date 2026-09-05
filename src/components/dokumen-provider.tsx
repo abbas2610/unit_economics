@@ -37,7 +37,7 @@ import {
 } from "react";
 import type { Dokumen } from "@/contexts/dokumen/domain/dokumen";
 import { dokumenAwal } from "@/contexts/dokumen/domain/dokumen";
-import { bacaDokumen } from "@/contexts/dokumen/domain/migrasi";
+import { bacaDokumen, deteksiAnomaliV1 } from "@/contexts/dokumen/domain/migrasi";
 import { muatLokal, simpanLokal } from "@/contexts/dokumen/infrastruktur/lokal";
 import {
   langgananDokumen,
@@ -97,6 +97,25 @@ export function DokumenProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setKabar((k) => (k === pesan ? null : k)), 1600);
   }, []);
 
+  /**
+   * Peringatan yang tidak boleh terlewat begitu saja kalau dokumen yang
+   * datang — dari awan, lokal, atau siaran realtime — ternyata kehilangan
+   * daftar yang seharusnya mustahil kosong (lihat `deteksiAnomaliV1`).
+   *
+   * `alert()`, bukan `beriKabar()`: kabar biasa hilang sendiri dalam 1,6 detik,
+   * dan ini justru saat paling berbahaya untuk mengetik lalu menyimpan —
+   * nilai contoh yang tampil sekarang akan tertimpa jadi seolah data asli.
+   */
+  const peringatkanAnomali = useCallback((payloadMentah: unknown) => {
+    const masalah = deteksiAnomaliV1(payloadMentah);
+    if (masalah.length === 0) return;
+    window.alert(
+      "⚠ Dokumen yang datang tampak tidak lengkap:\n\n" +
+        masalah.map((m) => `• ${m}`).join("\n") +
+        "\n\nJANGAN menyunting atau menyimpan dulu sebelum ini diperiksa — buka tab Riwayat untuk melihat versi sebelumnya.",
+    );
+  }, []);
+
   /* ── muat ──────────────────────────────────────────────────────────────── */
   useEffect(() => {
     let batal = false;
@@ -105,7 +124,10 @@ export function DokumenProvider({ children }: { children: ReactNode }) {
       const lokal = muatLokal();
 
       if (!awanTersedia()) {
-        if (!batal && lokal && !sudahDisunting.current) setDok(lokal);
+        if (!batal && lokal && !sudahDisunting.current) {
+          setDok(lokal.dokumen);
+          peringatkanAnomali(lokal.payloadMentah);
+        }
         siap.current = true;
         setStatus("lokal");
         return;
@@ -116,12 +138,13 @@ export function DokumenProvider({ children }: { children: ReactNode }) {
 
       if (hasil.jenis === "ada") {
         if (!sudahDisunting.current) setDok(hasil.dokumen);
+        peringatkanAnomali(hasil.payloadMentah);
         stempelKita.current = hasil.diperbaruiPada;
         setStatus("tersinkron");
       } else if (hasil.jenis === "kosong") {
         /* Baris bersama belum ada. Kirim yang ada di layar — lokal kalau ada,
            kalau tidak dokumen awal — supaya tim berikutnya punya titik mulai. */
-        const awal = lokal ?? dokumenAwal();
+        const awal = lokal?.dokumen ?? dokumenAwal();
         setDok(awal);
         const simpan = await simpanKeAwan(awal);
         if (!batal && simpan.jenis === "tersimpan") {
@@ -133,7 +156,7 @@ export function DokumenProvider({ children }: { children: ReactNode }) {
       } else {
         /* Gagal atau mati: pakai cadangan lokal, dan JANGAN menulis balik.
            Gangguan jaringan sesaat tidak boleh menimpa dokumen tim. */
-        if (lokal && !sudahDisunting.current) setDok(lokal);
+        if (lokal && !sudahDisunting.current) setDok(lokal.dokumen);
         setStatus(hasil.jenis === "mati" ? "lokal" : "gagal");
       }
       siap.current = true;
@@ -142,12 +165,12 @@ export function DokumenProvider({ children }: { children: ReactNode }) {
     return () => {
       batal = true;
     };
-  }, []);
+  }, [peringatkanAnomali]);
 
   /* ── dengarkan perubahan tim ───────────────────────────────────────────── */
   useEffect(() => {
     if (!awanTersedia()) return;
-    return langgananDokumen((dokBaru, stempel) => {
+    return langgananDokumen((dokBaru, payloadMentah, stempel) => {
       if (stempel && stempel === stempelKita.current) return; // gema simpanan kita
 
       /* Jangan mengganti dokumen saat ada yang sedang mengetik: nilai di kotak
@@ -158,10 +181,11 @@ export function DokumenProvider({ children }: { children: ReactNode }) {
 
       stempelKita.current = stempel;
       setDok(dokBaru);
+      peringatkanAnomali(payloadMentah);
       setStatus("diperbarui");
       beriKabar("Data diperbarui oleh tim");
     });
-  }, [beriKabar]);
+  }, [beriKabar, peringatkanAnomali]);
 
   /* ── simpan ────────────────────────────────────────────────────────────── */
   const jadwalkanSimpan = useCallback((dokBaru: Dokumen) => {
