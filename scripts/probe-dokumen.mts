@@ -46,7 +46,6 @@ const payloadV0 = {
     wastePct: 30,
     ppnPct: 11,
     perizinanPct: 10,
-    mirantiPct: 2,
     boxPackaging: 20000,
     boxAksesoris: 5000,
     fulfillmentCost: 5000,
@@ -120,6 +119,11 @@ console.log("\n=== 1. Payload v0 terbaca utuh ===");
   sama("kurs", d.asumsi.kurs, 17000);
   sama("fulfillmentCost → fulfillment", d.asumsi.fulfillment, 5000);
   sama("largeSizeML → mlBotolBesar", d.asumsi.mlBotolBesar, 100);
+  sama(
+    "payload v0 tidak pernah punya field botol kecil → default 15",
+    d.asumsi.mlBotolKecil,
+    dokumenAwal().asumsi.mlBotolKecil,
+  );
   sama("mix.shrinkagePct → campuran.susutPct", d.campuran.susutPct, 15);
   sama("mix.splitLargePct → alokasiBesarPct", d.campuran.alokasiBesarPct, 50);
   sama("jumlah varian", d.varian.length, 3);
@@ -137,7 +141,6 @@ console.log("\n=== 1. Payload v0 terbaca utuh ===");
   sama("projection.priceSmall → harga.kecil", d.harga.kecil, 200000);
   sama("marketing.others → lainnya", d.marketing.lainnya, 50000000);
   sama("options.amortize → opsi.amortisasiMolding", d.opsi.amortisasiMolding, false);
-  sama("sim.targetRevenue → simulasi.targetOmzet", d.simulasi.targetOmzet, 100000000);
 
   /* Yang paling penting: hasil hitungnya sama dengan dokumen awal. Kalau satu
      field terlewat, angkanya bergeser tanpa satu pun field terlihat kosong. */
@@ -324,6 +327,75 @@ console.log("\n=== 9. Export → import mempertahankan dokumen ===");
      kotak masuk yang tim benar-benar pakai saat menukar skenario lewat chat. */
   const dariLama = bacaDokumen(JSON.parse(JSON.stringify(payloadV0)));
   cek("berkas export builder lama bisa di-import", dariLama.supplierKecil.length === 2);
+}
+
+/* ══════════════════ 10. Skenario: komponen otomatis lama + custom baru ══ */
+console.log("\n=== 10. Skenario: field baru terisi default aman ===");
+
+{
+  /* payload v0 TIDAK PERNAH menyimpan fragrance/botol/aksesoris — dulu baris
+     otomatis, dihitung ulang, tidak pernah disentuh skenario. `custom` juga
+     belum pernah ada. Skenario lama harus tetap bisa dibaca, dengan angka ini
+     default 0/kosong, bukan melempar atau menghasilkan NaN. */
+  const skenarioLama = { id: "sc1", name: "Skenario Lama", sizeKey: "small", price: 200000, oem: 12000 };
+  const denganSkenarioLama = { ...payloadV0, ueScenarios: [skenarioLama] };
+  const d = bacaDokumen(denganSkenarioLama);
+  sama("jumlah skenario", d.skenario.length, 1);
+  sama("field lama tetap terbaca", d.skenario[0].oem, 12000);
+  sama("fragrance default 0 — skenario lama tidak pernah menyimpannya", d.skenario[0].fragrance, 0);
+  sama("botol default 0", d.skenario[0].botol, 0);
+  sama("aksesoris default 0", d.skenario[0].aksesoris, 0);
+  cek("custom default array kosong, bukan undefined", Array.isArray(d.skenario[0].custom));
+  sama("custom kosong", d.skenario[0].custom.length, 0);
+
+  /* Bentuk sekarang: field baru tersimpan dan terbaca utuh, termasuk custom[]. */
+  const skenarioBaru = {
+    ...dokumenAwal(),
+    skenario: [
+      {
+        id: "sc2",
+        nama: "Skenario Baru",
+        ukuran: "besar",
+        harga: 450000,
+        fragrance: 12000,
+        botol: 45200,
+        aksesoris: 3000,
+        oem: 15000,
+        box: 25000,
+        fulfillment: 5000,
+        custom: [{ id: "cust1", label: "Tarif impor", nilai: 7500 }],
+      },
+    ],
+  };
+  const balik = bacaDokumen(JSON.parse(JSON.stringify(skenarioBaru)));
+  sama("fragrance bolak-balik utuh", balik.skenario[0].fragrance, 12000);
+  sama("botol bolak-balik utuh", balik.skenario[0].botol, 45200);
+  sama("custom bolak-balik utuh", balik.skenario[0].custom[0].nilai, 7500);
+  sama("label custom bolak-balik utuh", balik.skenario[0].custom[0].label, "Tarif impor");
+
+  kontrol(
+    "[kontrol negatif] payload v0 memang tidak pernah punya field fragrance di skenario",
+    "fragrance" in skenarioLama,
+  );
+}
+
+/* ══════════════════════ 11. Biaya custom Initial Investment ══ */
+console.log("\n=== 11. investasiCustom: default kosong, bolak-balik utuh ===");
+
+{
+  /* payload v0 tidak pernah punya field ini sama sekali — fitur baru. */
+  const d = bacaDokumen(payloadV0);
+  cek("investasiCustom default array kosong, bukan undefined", Array.isArray(d.investasiCustom));
+  sama("investasiCustom kosong dari payload v0", d.investasiCustom.length, 0);
+
+  const denganBiaya = {
+    ...dokumenAwal(),
+    investasiCustom: [{ id: "invc1", label: "Sewa gudang", nilai: 12345678 }],
+  };
+  const balik = bacaDokumen(JSON.parse(JSON.stringify(denganBiaya)));
+  sama("jumlah biaya custom", balik.investasiCustom.length, 1);
+  sama("nilai biaya custom bolak-balik utuh", balik.investasiCustom[0].nilai, 12345678);
+  sama("label biaya custom bolak-balik utuh", balik.investasiCustom[0].label, "Sewa gudang");
 }
 
 /* ══════════════════════════════════════════════════════════════ selesai ══ */

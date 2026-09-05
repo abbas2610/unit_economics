@@ -32,7 +32,7 @@
 import type { Dimensi } from "@/contexts/asumsi/domain/kemasan";
 import type { Varian } from "@/contexts/fragrance/domain/varian";
 import type { MataUang, Supplier } from "@/contexts/supplier/domain/supplier";
-import type { Skenario } from "@/contexts/unit-economics/domain/skenario";
+import type { KomponenCustom, Skenario } from "@/contexts/unit-economics/domain/skenario";
 import type { Dokumen } from "./dokumen";
 import { dokumenAwal } from "./dokumen";
 
@@ -180,6 +180,15 @@ const supplierDari = (v: unknown, awalan: string, urut: number, kursBawaan: numb
   };
 };
 
+const komponenCustomDari = (v: unknown, urut: number): KomponenCustom => {
+  const c = objek(v);
+  return {
+    id: teks(c.id, "cust" + urut),
+    label: teks(c.label ?? c.nama, ""),
+    nilai: num(c.nilai ?? c.value, 0),
+  };
+};
+
 const skenarioDari = (v: unknown, urut: number): Skenario => {
   const s = objek(v);
   return {
@@ -189,10 +198,16 @@ const skenarioDari = (v: unknown, urut: number): Skenario => {
       ? "besar"
       : "kecil",
     harga: num(s.harga ?? s.price, 0),
+    /* Payload lama tidak pernah menyimpan tiga ini — dulu baris otomatis,
+       dihitung ulang, tidak pernah tersimpan di skenario. Default 0 wajar:
+       skenario lama tidak pernah membawa angka ini sama sekali. */
+    fragrance: num(s.fragrance, 0),
+    botol: num(s.botol, 0),
+    aksesoris: num(s.aksesoris, 0),
     oem: num(s.oem, 0),
     box: num(s.box, 0),
     fulfillment: num(s.fulfillment ?? s.fulfill, 0),
-    royalti: num(s.royalti ?? s.royalty, 0),
+    custom: larik(s.custom).map((c, i) => komponenCustomDari(c, i + 1)),
   };
 };
 
@@ -222,7 +237,6 @@ function dariV0(payload: Rekaman): Dokumen {
   const projection = objek(payload.projection);
   const marketing = objek(payload.marketing);
   const options = objek(payload.options);
-  const sim = objek(payload.sim);
 
   const kurs = num(base.kurs, awal.asumsi.kurs);
   const freightPerCBM = num(base.freightPerCBM, awal.asumsi.freightPerCBM);
@@ -247,10 +261,12 @@ function dariV0(payload: Rekaman): Dokumen {
       wastePct: num(base.wastePct, awal.asumsi.wastePct),
       ppnPct: num(base.ppnPct, awal.asumsi.ppnPct),
       perizinanPct: num(base.perizinanPct, awal.asumsi.perizinanPct),
-      mirantiPct: num(base.mirantiPct, awal.asumsi.mirantiPct),
       boxPackaging: num(base.boxPackaging, awal.asumsi.boxPackaging),
       boxAksesoris: num(base.boxAksesoris, awal.asumsi.boxAksesoris),
       fulfillment: num(base.fulfillmentCost, awal.asumsi.fulfillment),
+      /* Payload v0 tidak pernah punya field ini — botol kecil dulu konstanta,
+         bukan asumsi tersimpan. `num()` jatuh ke default 15 mL. */
+      mlBotolKecil: num(base.smallSizeML, awal.asumsi.mlBotolKecil),
       mlBotolBesar: num(base.largeSizeML, awal.asumsi.mlBotolBesar),
     },
     campuran: {
@@ -287,16 +303,9 @@ function dariV0(payload: Rekaman): Dokumen {
     },
     opsi: { amortisasiMolding: boolean(options.amortize, false) },
     skenario: larik(payload.ueScenarios).map(skenarioDari),
-    simulasi: {
-      kurs: num(sim.kurs, kurs),
-      freightPerCBM: num(sim.freightPerCBM, freightPerCBM),
-      fragAvgUsdPerLiter: num(sim.fragAvgUsdPerLiter, awal.simulasi.fragAvgUsdPerLiter),
-      wastePct: num(sim.wastePct, awal.simulasi.wastePct),
-      susutPct: num(sim.shrinkagePct, awal.simulasi.susutPct),
-      hargaKecil: num(sim.priceSmall, awal.simulasi.hargaKecil),
-      hargaBesar: num(sim.priceLarge, awal.simulasi.hargaBesar),
-      targetOmzet: num(sim.targetRevenue, awal.simulasi.targetOmzet),
-    },
+    /* Payload v0 tidak pernah punya fitur ini sama sekali — jatuh ke array
+       kosong lewat `larik()`. */
+    investasiCustom: larik(payload.investasiCustom).map((c, i) => komponenCustomDari(c, i + 1)),
   };
 }
 
@@ -312,7 +321,6 @@ function dariV1(payload: Rekaman): Dokumen {
   const harga = objek(payload.harga);
   const marketing = objek(payload.marketing);
   const opsi = objek(payload.opsi);
-  const sim = objek(payload.simulasi);
 
   const kurs = num(asumsi.kurs, awal.asumsi.kurs);
   const freightPerCBM = num(asumsi.freightPerCBM, awal.asumsi.freightPerCBM);
@@ -331,10 +339,10 @@ function dariV1(payload: Rekaman): Dokumen {
       wastePct: num(asumsi.wastePct, awal.asumsi.wastePct),
       ppnPct: num(asumsi.ppnPct, awal.asumsi.ppnPct),
       perizinanPct: num(asumsi.perizinanPct, awal.asumsi.perizinanPct),
-      mirantiPct: num(asumsi.mirantiPct, awal.asumsi.mirantiPct),
       boxPackaging: num(asumsi.boxPackaging, awal.asumsi.boxPackaging),
       boxAksesoris: num(asumsi.boxAksesoris, awal.asumsi.boxAksesoris),
       fulfillment: num(asumsi.fulfillment, awal.asumsi.fulfillment),
+      mlBotolKecil: num(asumsi.mlBotolKecil, awal.asumsi.mlBotolKecil),
       mlBotolBesar: num(asumsi.mlBotolBesar, awal.asumsi.mlBotolBesar),
     },
     campuran: {
@@ -372,16 +380,7 @@ function dariV1(payload: Rekaman): Dokumen {
     },
     opsi: { amortisasiMolding: boolean(opsi.amortisasiMolding, false) },
     skenario: larik(payload.skenario).map(skenarioDari),
-    simulasi: {
-      kurs: num(sim.kurs, kurs),
-      freightPerCBM: num(sim.freightPerCBM, freightPerCBM),
-      fragAvgUsdPerLiter: num(sim.fragAvgUsdPerLiter, awal.simulasi.fragAvgUsdPerLiter),
-      wastePct: num(sim.wastePct, awal.simulasi.wastePct),
-      susutPct: num(sim.susutPct, awal.simulasi.susutPct),
-      hargaKecil: num(sim.hargaKecil, awal.simulasi.hargaKecil),
-      hargaBesar: num(sim.hargaBesar, awal.simulasi.hargaBesar),
-      targetOmzet: num(sim.targetOmzet, awal.simulasi.targetOmzet),
-    },
+    investasiCustom: larik(payload.investasiCustom).map((c, i) => komponenCustomDari(c, i + 1)),
   };
 }
 

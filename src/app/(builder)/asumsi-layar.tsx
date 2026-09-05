@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Tab 1 — Asumsi Dasar.
+ * Tab 1 - Asumsi Dasar.
  *
  * Diisi sekali, diikuti seluruh halaman lain. Susunannya mengikuti urutan orang
  * mengisinya, bukan urutan rumusnya: parameter yang datang dari luar (kurs,
@@ -20,7 +20,6 @@ import {
 } from "@/contexts/fragrance/domain/varian";
 import { freightPerBotolDasar, pcsPerCBM } from "@/contexts/asumsi/domain/kemasan";
 import type { Dimensi } from "@/contexts/asumsi/domain/kemasan";
-import { ML_BOTOL_KECIL } from "@/contexts/asumsi/domain/asumsi";
 import { useDokumen } from "@/components/dokumen-provider";
 import {
   BarisRincian,
@@ -36,7 +35,6 @@ import {
   NilaiTurunan,
   Petak,
   Rincian,
-  Segmen,
   Tombol,
   TombolHapus,
   Angka,
@@ -84,7 +82,7 @@ export function AsumsiLayar() {
               />
             </Bidang>
             <Bidang
-              label="Biaya OEM — Botol Kecil"
+              label="Biaya OEM - Botol Kecil"
               petunjuk="(termasuk alkohol, aquadest, pencampuran)"
             >
               <IsianAngka
@@ -95,7 +93,7 @@ export function AsumsiLayar() {
               />
             </Bidang>
             <Bidang
-              label="Biaya OEM — Botol Besar"
+              label="Biaya OEM - Botol Besar"
               petunjuk="(termasuk alkohol, aquadest, pencampuran)"
             >
               <IsianAngka
@@ -137,22 +135,6 @@ export function AsumsiLayar() {
                 ariaLabel="Perizinan botol"
               />
             </Bidang>
-            <Bidang label="Royalti Miranti" petunjuk="(% dari harga jual)">
-              <IsianAngka
-                nilai={asumsi.mirantiPct}
-                onUbah={(n) => setAsumsi("mirantiPct", jepit(n, 0, 100))}
-                akhiran="%"
-                ariaLabel="Royalti Miranti"
-              />
-            </Bidang>
-          </div>
-          <div className="mt-4">
-            <Catatan>
-              <strong>Miranti</strong> adalah orang yang mengenalkan tim ke Perfume House.
-              Royaltinya dihitung dari <strong>harga jual</strong>, bukan dari biaya — jadi
-              menaikkan harga ikut menaikkan komponen ini, dan gross profit tidak naik
-              sebesar kenaikan harganya.
-            </Catatan>
           </div>
         </Kartu>
 
@@ -186,20 +168,25 @@ export function AsumsiLayar() {
           </div>
 
           <div className="mt-6">
-            <JudulBlok judul="Ukuran Botol Besar" sub="Belum fix — pilih untuk skenario saat ini." />
-            <Segmen
-              label="Ukuran botol besar"
-              nilai={asumsi.mlBotolBesar}
-              pilihan={[
-                { nilai: 100, label: "100 ML" },
-                { nilai: 50, label: "50 ML" },
-              ]}
-              onUbah={(n) => setAsumsi("mlBotolBesar", n)}
-            />
-            <p className="mt-3 text-meta text-fg-subtle">
-              Botol kecil tetap {ML_BOTOL_KECIL} ML — ukuran itulah yang mendefinisikan SKU-nya,
-              jadi ia konstanta, bukan asumsi.
-            </p>
+            <JudulBlok judul="Ukuran Botol" sub="Isi bebas - mL berapa pun bisa dipakai." />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Bidang label="Botol kecil">
+                <IsianAngka
+                  nilai={asumsi.mlBotolKecil}
+                  akhiran="ML"
+                  ariaLabel="Ukuran botol kecil"
+                  onUbah={(n) => setAsumsi("mlBotolKecil", n)}
+                />
+              </Bidang>
+              <Bidang label="Botol besar">
+                <IsianAngka
+                  nilai={asumsi.mlBotolBesar}
+                  akhiran="ML"
+                  ariaLabel="Ukuran botol besar"
+                  onUbah={(n) => setAsumsi("mlBotolBesar", n)}
+                />
+              </Bidang>
+            </div>
           </div>
         </Kartu>
       </Petak>
@@ -209,7 +196,7 @@ export function AsumsiLayar() {
         <Kartu>
           <JudulBlok
             judul="Varian Fragrance Oil"
-            sub="Harga biang parfum dari Perfume House (USD). Unit economics memakai rata-ratanya — selisih antar varian di bawah 0,02% terhadap COGS. Jumlah varian tidak dibatasi tiga, dan tiap varian menambah biaya perizinan BPOM + Halal."
+            sub="Harga biang parfum dari Perfume House (USD). Unit economics memakai rata-ratanya - selisih antar varian di bawah 0,02% terhadap COGS. Jumlah varian tidak dibatasi tiga, dan tiap varian menambah biaya perizinan BPOM + Halal."
           />
 
           <div className="flex flex-col gap-2.5">
@@ -277,7 +264,7 @@ export function AsumsiLayar() {
                       nama: "Varian Baru",
                       /* Harga awal = rata-rata yang ada, bukan 0. Varian baru
                          berharga nol menurunkan rata-rata seluruh COGS sampai
-                         angkanya diisi — dan sementara itu layarnya menunjukkan
+                         angkanya diisi - dan sementara itu layarnya menunjukkan
                          margin yang lebih baik daripada yang sebenarnya. */
                       usdPerLiter: rataUsdPerLiter(d.varian) || 2.4,
                       qtyLiter: 25,
@@ -310,7 +297,7 @@ export function AsumsiLayar() {
           <div className="mt-6">
             <JudulBlok
               judul="Biaya Perizinan per Varian"
-              sub="BPOM & Sertifikat Halal dibayar per varian produk — otomatis dikalikan jumlah varian di atas."
+              sub="BPOM & Sertifikat Halal dibayar per varian produk - otomatis dikalikan jumlah varian di atas."
             />
             <div className="grid gap-4 sm:grid-cols-2">
               <Bidang label="Perizinan BPOM / varian">
@@ -353,7 +340,7 @@ export function AsumsiLayar() {
         <Kartu>
           <JudulBlok
             judul="Komposisi & Hasil Campuran"
-            sub="Dari total fragrance oil yang dibeli di atas: campuran jadi berapa liter, dan bisa jadi berapa botol. Angka ini yang dipakai sebagai qty batch di Initial Investment — ia diturunkan, tidak diisi manual."
+            sub="Dari total fragrance oil yang dibeli di atas: campuran jadi berapa liter, dan bisa jadi berapa botol. Angka ini yang dipakai sebagai qty batch di Initial Investment - ia diturunkan, tidak diisi manual."
           />
 
           <div className="grid gap-4 sm:grid-cols-3">
@@ -429,7 +416,7 @@ export function AsumsiLayar() {
               <p className="mt-3 text-meta text-fg-subtle">
                 Alokasi ini berbasis <strong>volume</strong>, bukan jumlah botol. Membagi 50:50
                 menghasilkan botol kecil jauh lebih banyak daripada botol besar, karena satu
-                botol besar menghabiskan {asumsi.mlBotolBesar / ML_BOTOL_KECIL}× isi botol kecil.
+                botol besar menghabiskan {asumsi.mlBotolBesar / asumsi.mlBotolKecil}× isi botol kecil.
               </p>
             </div>
             <Donat
@@ -459,11 +446,11 @@ export function AsumsiLayar() {
         <Kartu>
           <JudulBlok
             judul="Freight Forwarder per Botol (default)"
-            sub="Dihitung dari dimensi botol, packing efficiency, dan tarif per CBM di atas. Ini nilai default yang diwarisi supplier BARU — supplier yang sudah ada menyimpan angkanya sendiri dan tidak ikut berubah."
+            sub="Dihitung dari dimensi botol, packing efficiency, dan tarif per CBM di atas. Ini nilai default yang diwarisi supplier BARU - supplier yang sudah ada menyimpan angkanya sendiri dan tidak ikut berubah."
           />
           <Petak>
             <BlokDimensi
-              judul={`Botol Kecil (${ML_BOTOL_KECIL} ML)`}
+              judul={`Botol Kecil (${asumsi.mlBotolKecil} ML)`}
               d={dimensi.kecil}
               onUbah={(d) => ubah((x) => ({ ...x, dimensi: { ...x.dimensi, kecil: d } }))}
               pcsCbm={pcsPerCBM(dimensi.kecil, asumsi.packingEfficiency)}
@@ -481,7 +468,7 @@ export function AsumsiLayar() {
             <Catatan>
               Efisiensi packing <strong>membagi</strong>, bukan mengalikan: ruang kosong di kardus
               tetap dikirim dan tetap dibayar, jadi tiap botol menempati volumenya sendiri dibagi{" "}
-              {persen(asumsi.packingEfficiency)} — lebih besar dari volume botolnya.
+              {persen(asumsi.packingEfficiency)} - lebih besar dari volume botolnya.
             </Catatan>
           </div>
         </Kartu>

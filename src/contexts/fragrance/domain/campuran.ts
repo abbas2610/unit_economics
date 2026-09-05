@@ -26,7 +26,6 @@
  * masuk ke pembagi amortisasi molding serta ke proyeksi gross profit batch.
  */
 import type { Asumsi } from "@/contexts/asumsi/domain/asumsi";
-import { ML_BOTOL_KECIL } from "@/contexts/asumsi/domain/asumsi";
 import type { Varian } from "./varian";
 import { totalLiterDipesan } from "./varian";
 
@@ -77,6 +76,7 @@ export function hitungCampuran(
   const alokasiKecilPct = 100 - alokasiBesarPct;
 
   const mlPascaSusut = literPascaSusut * 1000;
+  const mlKecil = asumsi.mlBotolKecil || 0;
   const mlBesar = asumsi.mlBotolBesar || 0;
 
   return {
@@ -87,7 +87,7 @@ export function hitungCampuran(
     literPascaSusut,
     alokasiKecilPct,
     alokasiBesarPct,
-    pcsKecil: Math.floor((mlPascaSusut * (alokasiKecilPct / 100)) / ML_BOTOL_KECIL),
+    pcsKecil: mlKecil > 0 ? Math.floor((mlPascaSusut * (alokasiKecilPct / 100)) / mlKecil) : 0,
     pcsBesar: mlBesar > 0 ? Math.floor((mlPascaSusut * (alokasiBesarPct / 100)) / mlBesar) : 0,
   };
 }

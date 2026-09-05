@@ -108,13 +108,13 @@ pcs per CBM    = 1.000.000 ÷ volume efektif
 
 ```
 fulfillment = biaya tetap per botol
-royalti     = harga jual × % royalti Miranti
 amortisasi  = total molding ÷ qty batch      (hanya kalau dinyalakan)
 ```
 
-> ⚠️ **Royalti dihitung dari HARGA JUAL, bukan dari biaya.** Menaikkan harga
-> Rp200.000 hanya menambah gross profit Rp196.000 pada royalti 2% — sisanya ikut
-> jadi royalti. Ini komponen COGS satu-satunya yang bergerak saat harga digeser.
+> ⚠️ **Tidak ada komponen COGS yang bergantung pada harga jual.** Sempat ada
+> royalti (% dari harga jual, lihat riwayat git) — sekarang dihapus. Konsekuensinya:
+> menaikkan harga jual menaikkan gross profit rupiah-demi-rupiah, tidak lagi
+> sebagian "bocor" ke komponen COGS mana pun.
 
 ### Hasilnya
 
@@ -127,10 +127,9 @@ amortisasi  = total molding ÷ qty batch      (hanya kalau dinyalakan)
 | Box | Rp25.000 | Rp25.000 |
 | Freight | Rp2.139 | Rp3.937 |
 | Fulfillment | Rp5.000 | Rp5.000 |
-| Royalti | Rp4.000 | Rp7.000 |
-| **COGS** | **Rp65.372** | **Rp73.050** |
+| **COGS** | **Rp61.372** | **Rp66.050** |
 | Harga jual | Rp200.000 | Rp350.000 |
-| **Gross margin** | **67,3%** | **79,1%** |
+| **Gross margin** | **69,3%** | **81,1%** |
 
 ---
 
@@ -271,50 +270,3 @@ sebenarnya.
 > di sana adalah "tidak akan pernah balik modal pada harga ini". Meleburnya
 > menampilkan kabar terburuk di halaman sebagai kabar terbaik.
 
-### Target penjualan memakai asumsi yang BERBEDA
-
-Halaman Target Penjualan mengasumsikan botol kecil dan besar terjual **sama
-banyak** (1:1), bukan mengikuti komposisi batch (8.500 : 1.275). Dua angka pcs di
-aplikasi ini karena itu tidak bisa langsung disandingkan. Disebut di layar, dan
-disebut lagi di sini, karena angka pcs yang tidak menyebut asumsi campurannya
-akan dibawa ke rapat sebagai target produksi.
-
----
-
-## 6. Sensitivitas
-
-Skenario adalah **dokumen lain** — bukan state global yang ditukar sementara.
-Builder lama menukar variabel global `S` ke kloning lalu memulihkannya di
-`finally`; itu bekerja, dan juga berarti tiap fungsi hitung punya satu argumen
-tersembunyi yang tidak muncul di tanda tangannya.
-
-Yang digeser tiap slider:
-
-| Slider | Yang diubah |
-| --- | --- |
-| Kurs | `asumsi.kurs` |
-| Tarif freight | `asumsi.freightPerCBM` **dan** `ratePerCBM` tiap supplier, diskala faktor yang sama |
-| Harga fragrance | `usdPerLiter` tiap varian, diskala terhadap rata-rata saat ini |
-| Waste, penyusutan | `asumsi.wastePct`, `campuran.susutPct` |
-| Harga jual | `harga.kecil`, `harga.besar` |
-
-> ⚠️ Baris freight itu penting dan pernah rusak diam-diam. **Tiap supplier
-> menyimpan `ratePerCBM`-nya sendiri**, terlepas dari asumsi dasar — mengubah
-> tarif di tab 1 tidak menggeser supplier yang sudah ada. Slider yang cuma
-> mengganti tarif dasar karena itu tidak menggerakkan apa pun, dan terbaca sebagai
-> "freight tidak berpengaruh". Dijaga `probe:hitung` bagian 9.
-
-Harga fragrance digeser sebagai **faktor**, bukan ditetapkan ke satu nilai: kalau
-tiap varian dipaksa ke rata-rata yang sama, sebaran harga antar varian hilang
-begitu slider disentuh.
-
-### Tornado memakai satuan yang berbeda, dan menyebutnya
-
-Kurs, freight, dan harga fragrance diguncang **+10%**. Waste dan penyusutan
-**+10 poin**. Bedanya disengaja: menaikkan waste 30% "sebesar 10%" jadi 33%
-adalah guncangan yang jauh lebih kecil daripada yang dibayangkan pembacanya, dan
-tabel yang mencampur dua makna tanpa menyebutnya membuat urutan pengaruhnya tidak
-bisa dipercaya.
-
-Titik awalnya **kondisi saat ini**, bukan posisi slider. Kalau ia mengikuti
-slider, urutan pengaruhnya berubah tiap kali seseorang menggeser hal lain.

@@ -17,7 +17,7 @@ src/components/        komponen & store dokumen
 src/app/               rute
 ```
 
-### Enam konteks
+### Lima konteks
 
 | Konteks | Menjawab |
 | --- | --- |
@@ -25,8 +25,7 @@ src/app/               rute
 | `fragrance` | harga biang, biaya per botol, campuran, hasil produksi |
 | `supplier` | molding, biaya satuan, MOQ, freight per supplier, total per batch |
 | `unit-economics` | COGS, gross profit, margin, break-even, skenario perbandingan |
-| `investasi` | initial investment: produk + marketing, pajak, kelebihan stok |
-| `sensitivitas` | skenario "bagaimana jika", tornado, target omzet |
+| `investasi` | initial investment: produk + marketing, pajak, kelebihan stok, biaya custom |
 | `dokumen` | bentuk dokumen, migrasi, penyimpanan lokal & awan |
 
 ## Aturan, dan apa yang rusak kalau dilanggar
@@ -122,6 +121,7 @@ sumber untuk satu angka selalu berbeda pada akhirnya, dan yang tersimpan menang
 di jalur kode yang lupa menghitung ulang.
 
 **Seluruh fungsi hitung menerima `Dokumen` sebagai argumen.** Tidak ada state
-global yang ditukar sementara. Itu yang membuat analisis sensitivitas cuma
-"dokumen lain", dan yang membuat `probe:hitung` bisa menjalankan sepuluh skenario
-berdampingan tanpa satu pun saling mencemari.
+global yang ditukar sementara. Itu yang membuat skenario "kalau begini" di tab
+Unit Economics cuma "dokumen lain" — bukan variabel tersembunyi yang harus
+ditukar lalu dikembalikan — dan yang membuat `probe:hitung` bisa menjalankan
+sepuluh skenario berdampingan tanpa satu pun saling mencemari.

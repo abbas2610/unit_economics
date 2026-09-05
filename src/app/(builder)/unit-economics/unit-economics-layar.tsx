@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * Tab 5 — Unit Economics per botol, plus tabel skenario custom.
+ * Tab 5 - Unit Economics per botol, plus tabel skenario custom.
  *
  * Dua kartu SKU memakai skala batang yang SAMA (harga jual tertinggi di antara
  * keduanya bukan patokan; tiap batang diskalakan ke harga jualnya sendiri).
- * Yang dibandingkan antar kartu adalah PROPORSI — berapa bagian dari harga jual
- * yang dimakan biaya — bukan rupiahnya, dan proporsi itulah yang menentukan mana
+ * Yang dibandingkan antar kartu adalah PROPORSI - berapa bagian dari harga jual
+ * yang dimakan biaya - bukan rupiahnya, dan proporsi itulah yang menentukan mana
  * SKU yang lebih layak didorong.
  */
 import { persen, persenDelta, pcs, rupiah } from "@/bersama/format";
@@ -14,12 +14,8 @@ import { cx } from "@/bersama/cx";
 import type { UkuranBotol } from "@/contexts/asumsi/domain/asumsi";
 import { initialInvestment } from "@/contexts/investasi/aplikasi/investasi";
 import { idBerikutnya } from "@/contexts/dokumen/domain/migrasi";
-import {
-  BARIS_SKENARIO,
-  BARIS_TERKUNCI,
-  cogsSkenario,
-} from "@/contexts/unit-economics/domain/skenario";
-import type { Skenario } from "@/contexts/unit-economics/domain/skenario";
+import { BARIS_KOMPONEN, cogsSkenario } from "@/contexts/unit-economics/domain/skenario";
+import type { KomponenSkenario, Skenario } from "@/contexts/unit-economics/domain/skenario";
 import {
   breakEven,
   grossProfitBatch,
@@ -31,8 +27,6 @@ import {
   BarisRincian,
   BatangKomposisi,
   Bidang,
-  BungkusTabel,
-  Catatan,
   IsianAngka,
   IsianTeks,
   JudulBlok,
@@ -62,18 +56,18 @@ export function UnitEconomicsLayar() {
       <KepalaHalaman
         langkah="Langkah 5"
         judul="Unit Economics per Botol"
-        catatan="Mengikuti supplier yang dipilih di Initial Investment. Ubah harga jual untuk melihat dampaknya ke gross profit — ingat royalti dihitung dari harga jual, jadi kenaikan harga tidak seluruhnya jatuh ke profit."
+        catatan="Mengikuti supplier yang dipilih di Initial Investment. Ubah harga jual untuk melihat dampaknya ke gross profit."
       />
 
       <PetakKpi>
         <Kpi
-          label="Gross Margin — Kecil"
+          label="Gross Margin - Kecil"
           nilai={persenDelta(kecil.grossMargin)}
           keterangan={`Harga ${rupiah(kecil.harga)} · COGS ${rupiah(kecil.cogs)}`}
           warna={kecil.grossMargin < 0 ? "turun" : "primer"}
         />
         <Kpi
-          label="Gross Margin — Besar"
+          label="Gross Margin - Besar"
           nilai={persenDelta(besar.grossMargin)}
           keterangan={`Harga ${rupiah(besar.harga)} · COGS ${rupiah(besar.cogs)}`}
           warna={besar.grossMargin < 0 ? "turun" : "primer"}
@@ -85,7 +79,7 @@ export function UnitEconomicsLayar() {
         />
         <Kpi
           label="Break-even (unit terjual)"
-          nilai={be === null ? "—" : pcs(be)}
+          nilai={be === null ? "-" : pcs(be)}
           keterangan={
             be === null
               ? "Tidak akan balik modal pada harga ini"
@@ -97,9 +91,14 @@ export function UnitEconomicsLayar() {
 
       <div className="mt-4">
         <Petak>
-          <KartuSKU judul="Botol Kecil — 15 ML" r={kecil} dok={dok} ubah={ubah} />
           <KartuSKU
-            judul={`Botol Besar — ${dok.asumsi.mlBotolBesar} ML`}
+            judul={`Botol Kecil - ${dok.asumsi.mlBotolKecil} ML`}
+            r={kecil}
+            dok={dok}
+            ubah={ubah}
+          />
+          <KartuSKU
+            judul={`Botol Besar - ${dok.asumsi.mlBotolBesar} ML`}
             r={besar}
             dok={dok}
             ubah={ubah}
@@ -108,19 +107,7 @@ export function UnitEconomicsLayar() {
       </div>
 
       <div className="mt-4">
-        <Kartu>
-          <Catatan>
-            Secara default molding <strong>tidak</strong> masuk COGS per botol — ia capex yang
-            sudah dihitung penuh di Initial Investment, jadi memasukkannya di sini berarti
-            menghitungnya dua kali kalau kedua angka dibaca berdampingan. Nyalakan{" "}
-            <strong>Amortisasi molding</strong> di tab Initial Investment saat yang ditanya
-            &ldquo;berapa biaya per unit sesungguhnya untuk batch ini&rdquo;.
-          </Catatan>
-        </Kartu>
-      </div>
-
-      <div className="mt-4">
-        <TabelSkenario />
+        <SkenarioCustom />
       </div>
     </>
   );
@@ -144,7 +131,7 @@ function KartuSKU({
     <Kartu>
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-card-title text-fg">{judul}</h2>
-        <span className="text-meta text-fg-subtle">{r.supplier?.nama ?? "—"}</span>
+        <span className="text-meta text-fg-subtle">{r.supplier?.nama ?? "-"}</span>
       </div>
 
       <Rincian>
@@ -167,11 +154,8 @@ function KartuSKU({
 
         <KepalaRincian>Fulfillment</KepalaRincian>
         <BarisRincian label="Fulfillment cost">{rupiah(r.fulfillment)}</BarisRincian>
-        <BarisRincian label={`Royalti Miranti (${persen(dok.asumsi.mirantiPct)} dari harga jual)`}>
-          {rupiah(r.royalti)}
-        </BarisRincian>
         {/* Dua baris, bukan satu. Kelebihan MOQ dulu tidak muncul di mana pun
-            walau toggle-nya menyala, padahal jumlahnya bisa sebanding molding —
+            walau toggle-nya menyala, padahal jumlahnya bisa sebanding molding -
             dan ia uang yang sama nyatanya. */}
         {dok.opsi.amortisasiMolding ? (
           <>
@@ -215,8 +199,8 @@ function KartuSKU({
           { label: "Bahan baku", nilai: r.bahanBaku, kelas: "bg-primary" },
           { label: "Botol & packaging", nilai: r.botolPacking, kelas: "bg-brand" },
           {
-            label: "Fulfillment & royalti",
-            nilai: r.fulfillment + r.royalti + r.amortisasi,
+            label: "Fulfillment",
+            nilai: r.fulfillment + r.amortisasi,
             kelas: "bg-primary-disabled",
           },
         ]}
@@ -234,7 +218,7 @@ function KartuSKU({
 
       {r.grossMargin < 0 ? (
         <Peringatan>
-          COGS melebihi harga jual sebesar <strong>{rupiah(r.cogs - r.harga)}</strong> per botol —
+          COGS melebihi harga jual sebesar <strong>{rupiah(r.cogs - r.harga)}</strong> per botol -
           tiap botol yang terjual menambah kerugian.
         </Peringatan>
       ) : null}
@@ -244,16 +228,27 @@ function KartuSKU({
 
 /* ═══════════════════════════════════════════════════ skenario custom ══ */
 
-function TabelSkenario() {
+/** Nilai baku "kalau dipakai sekarang" untuk satu ukuran - sumber tombol ↺. */
+const otomatisSekarang = (
+  dok: ReturnType<typeof useDokumen>["dok"],
+  ukuran: UkuranBotol,
+): KomponenSkenario => {
+  const u = unitEconomics(dok, ukuran);
+  /* Freight ikut baris "Botol" - sama seperti perizinan, bagian dari harga
+     botol, bukan komponen yang berdiri sendiri. */
+  return {
+    fragrance: u.fragrance,
+    botol: u.botol + u.freight,
+    aksesoris: u.aksesoris,
+    oem: u.oem,
+    box: u.box,
+    fulfillment: u.fulfillment,
+  };
+};
+
+function SkenarioCustom() {
   const { dok, ubah } = useDokumen();
   const daftar = dok.skenario;
-
-  const otomatis = (ukuran: UkuranBotol) => {
-    const u = unitEconomics(dok, ukuran);
-    /* Freight ikut baris "Botol" — ia bukan lagi sesuatu yang bisa diedit
-       per skenario, mengikuti supplier & tarif freight yang sedang aktif. */
-    return { fragrance: u.fragrance, botol: u.botol + u.freight, aksesoris: u.aksesoris };
-  };
 
   const dariSaatIni = (ukuran: UkuranBotol, nama: string): Skenario => {
     const u = unitEconomics(dok, ukuran);
@@ -262,10 +257,13 @@ function TabelSkenario() {
       nama,
       ukuran,
       harga: Math.round(u.harga),
+      fragrance: Math.round(u.fragrance),
+      botol: Math.round(u.botol + u.freight),
+      aksesoris: Math.round(u.aksesoris),
       oem: Math.round(u.oem),
       box: Math.round(u.box),
       fulfillment: Math.round(u.fulfillment),
-      royalti: Math.round(u.royalti),
+      custom: [],
     };
   };
 
@@ -276,142 +274,37 @@ function TabelSkenario() {
     <Kartu>
       <JudulBlok
         judul="Perbandingan Skenario Custom"
+        aksen
         sub={
           <>
-            Baris <strong>🔒 Otomatis</strong> ikut asumsi &amp; supplier yang sedang aktif untuk
-            ukuran botol yang dipilih kolom itu. Baris <strong>✎ Bisa diubah</strong> bebas
-            diedit per skenario — di situlah pertanyaan &ldquo;kalau OEM-nya segini&rdquo;
-            dijawab tanpa mengubah angka rencana.
+            Tiap kartu adalah rencana sendiri - semua angkanya bisa diedit bebas, termasuk
+            fragrance/botol/aksesoris yang tadinya ikut asumsi &amp; supplier aktif. Klik{" "}
+            <strong>↺</strong> di sebelah angka itu untuk menyalin ulang angka yang berlaku
+            sekarang. Tombol <strong>+ Tambah komponen</strong> di tiap kartu untuk biaya yang
+            tidak ada padanannya di tab lain sama sekali.
           </>
         }
       />
 
       {daftar.length === 0 ? (
         <p className="py-3 text-body text-fg-subtle">
-          Belum ada skenario. Tambahkan satu kolom untuk mulai membandingkan — kolom baru selalu
+          Belum ada skenario. Tambahkan satu kartu untuk mulai membandingkan - kartu baru selalu
           diisi angka yang sedang berlaku, bukan nol.
         </p>
       ) : (
-        <BungkusTabel>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th className="th">Skenario</th>
-                {daftar.map((sc) => (
-                  <th key={sc.id} className="th min-w-[180px] text-right">
-                    <span className="flex items-center justify-end gap-1.5">
-                      <IsianTeks
-                        nilai={sc.nama}
-                        className="flex-1"
-                        ariaLabel={`Nama skenario ${sc.nama}`}
-                        onUbah={(t) => setSkenario(sc.id, (s) => ({ ...s, nama: t }))}
-                      />
-                      <TombolHapus
-                        label={`Hapus skenario ${sc.nama}`}
-                        onClick={() =>
-                          ubah((d) => ({
-                            ...d,
-                            skenario: d.skenario.filter((s) => s.id !== sc.id),
-                          }))
-                        }
-                      />
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="td text-fg-muted">Ukuran botol</td>
-                {daftar.map((sc) => (
-                  <td key={sc.id} className="td text-right">
-                    <select
-                      aria-label={`Ukuran botol ${sc.nama}`}
-                      className="h-control-sm w-full rounded-sm border border-border bg-surface px-2 text-right text-body text-fg"
-                      value={sc.ukuran}
-                      onChange={(e) =>
-                        setSkenario(sc.id, (s) => ({
-                          ...s,
-                          ukuran: e.target.value as UkuranBotol,
-                        }))
-                      }
-                    >
-                      <option value="kecil">Kecil</option>
-                      <option value="besar">Besar</option>
-                    </select>
-                  </td>
-                ))}
-              </tr>
-
-              <BarisIsian
-                label="Harga jual"
-                daftar={daftar}
-                kunci="harga"
-                onUbah={setSkenario}
-              />
-
-              <tr>
-                <td colSpan={daftar.length + 1} className="th">
-                  🔒 Otomatis — ikut ukuran botol &amp; supplier aktif
-                </td>
-              </tr>
-              {BARIS_TERKUNCI.map(([kunci, label]) => (
-                <tr key={kunci} className="bg-primary-subtle/30">
-                  <td className="td text-primary">{label}</td>
-                  {daftar.map((sc) => (
-                    <td key={sc.id} className="td tabular text-right text-fg" data-numeric>
-                      {rupiah(otomatis(sc.ukuran)[kunci])}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-
-              <tr>
-                <td colSpan={daftar.length + 1} className="th">
-                  ✎ Bisa diubah — custom per skenario
-                </td>
-              </tr>
-              {BARIS_SKENARIO.map(([kunci, label]) => (
-                <BarisIsian
-                  key={kunci}
-                  label={label}
-                  daftar={daftar}
-                  kunci={kunci}
-                  onUbah={setSkenario}
-                />
-              ))}
-
-              <tr className="border-t border-border-strong">
-                <td className="td font-semibold text-fg">Total COGS</td>
-                {daftar.map((sc) => (
-                  <td key={sc.id} className="td tabular text-right font-bold text-fg" data-numeric>
-                    {rupiah(cogsSkenario(sc, otomatis(sc.ukuran)))}
-                  </td>
-                ))}
-              </tr>
-              <tr>
-                <td className="td font-semibold text-fg">Gross profit / botol</td>
-                {daftar.map((sc) => (
-                  <td key={sc.id} className="td text-right" data-numeric>
-                    <Nilai nilai={sc.harga - cogsSkenario(sc, otomatis(sc.ukuran))} />
-                  </td>
-                ))}
-              </tr>
-              <tr>
-                <td className="td font-semibold text-fg">Gross margin</td>
-                {daftar.map((sc) => {
-                  const cogs = cogsSkenario(sc, otomatis(sc.ukuran));
-                  const gpm = sc.harga > 0 ? ((sc.harga - cogs) / sc.harga) * 100 : 0;
-                  return (
-                    <td key={sc.id} className="td text-right" data-numeric>
-                      <Nilai nilai={gpm} jenis="persen" />
-                    </td>
-                  );
-                })}
-              </tr>
-            </tbody>
-          </table>
-        </BungkusTabel>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {daftar.map((sc) => (
+            <KartuSkenario
+              key={sc.id}
+              sc={sc}
+              otomatis={otomatisSekarang(dok, sc.ukuran)}
+              onUbah={(fn) => setSkenario(sc.id, fn)}
+              onHapus={() =>
+                ubah((d) => ({ ...d, skenario: d.skenario.filter((s) => s.id !== sc.id) }))
+              }
+            />
+          ))}
+        </div>
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -436,30 +329,143 @@ function TabelSkenario() {
   );
 }
 
-function BarisIsian({
-  label,
-  daftar,
-  kunci,
+function KartuSkenario({
+  sc,
+  otomatis,
   onUbah,
+  onHapus,
 }: {
-  label: string;
-  daftar: Skenario[];
-  kunci: "harga" | "oem" | "box" | "fulfillment" | "royalti";
-  onUbah: (id: string, fn: (s: Skenario) => Skenario) => void;
+  sc: Skenario;
+  otomatis: KomponenSkenario;
+  onUbah: (fn: (s: Skenario) => Skenario) => void;
+  onHapus: () => void;
 }) {
+  const cogs = cogsSkenario(sc);
+  const gpm = sc.harga > 0 ? ((sc.harga - cogs) / sc.harga) * 100 : 0;
+
+  const tambahCustom = () =>
+    onUbah((s) => ({
+      ...s,
+      custom: [...s.custom, { id: `${s.id}-cust${s.custom.length + 1}`, label: "", nilai: 0 }],
+    }));
+  const setCustom = (id: string, fn: (c: Skenario["custom"][number]) => Skenario["custom"][number]) =>
+    onUbah((s) => ({ ...s, custom: s.custom.map((c) => (c.id === id ? fn(c) : c)) }));
+  const hapusCustom = (id: string) =>
+    onUbah((s) => ({ ...s, custom: s.custom.filter((c) => c.id !== id) }));
+
   return (
-    <tr className={cx("bg-success-bg/30")}>
-      <td className="td text-naik">{label}</td>
-      {daftar.map((sc) => (
-        <td key={sc.id} className="td text-right">
-          <IsianAngka
-            nilai={sc[kunci]}
-            className="w-full"
-            ariaLabel={`${label} ${sc.nama}`}
-            onUbah={(n) => onUbah(sc.id, (s) => ({ ...s, [kunci]: n }))}
-          />
-        </td>
-      ))}
-    </tr>
+    <section className="card overflow-hidden p-0">
+      <div className="flex items-center gap-1.5 border-b border-primary/20 bg-primary-subtle px-5 py-3">
+        <IsianTeks
+          nilai={sc.nama}
+          className="flex-1 font-semibold"
+          ariaLabel={`Nama skenario ${sc.nama}`}
+          onUbah={(t) => onUbah((s) => ({ ...s, nama: t }))}
+        />
+        <TombolHapus label={`Hapus skenario ${sc.nama}`} onClick={onHapus} />
+      </div>
+
+      <div className="p-5">
+        <div className="grid grid-cols-2 gap-3">
+          <Bidang label="Ukuran botol">
+            <select
+              aria-label={`Ukuran botol ${sc.nama}`}
+              className="h-control w-full rounded-md border border-border bg-surface px-2.5 text-body text-fg outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
+              value={sc.ukuran}
+              onChange={(e) => onUbah((s) => ({ ...s, ukuran: e.target.value as UkuranBotol }))}
+            >
+              <option value="kecil">Kecil</option>
+              <option value="besar">Besar</option>
+            </select>
+          </Bidang>
+          <div className="rounded-md border border-primary/40 bg-primary-subtle p-2">
+            <Bidang label="Harga jual">
+              <IsianAngka
+                nilai={sc.harga}
+                awalan="Rp"
+                className="bg-surface font-bold text-primary"
+                ariaLabel={`Harga jual ${sc.nama}`}
+                onUbah={(n) => onUbah((s) => ({ ...s, harga: n }))}
+              />
+            </Bidang>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <Rincian>
+            {BARIS_KOMPONEN.map(({ kunci, label }) => (
+              <BarisRincian key={kunci} label={label}>
+                <span className="flex items-center gap-1.5">
+                  <IsianAngka
+                    nilai={sc[kunci]}
+                    awalan="Rp"
+                    className="w-32"
+                    ariaLabel={`${label} - ${sc.nama}`}
+                    onUbah={(n) => onUbah((s) => ({ ...s, [kunci]: n }))}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onUbah((s) => ({ ...s, [kunci]: otomatis[kunci] }))}
+                    title={`Pakai angka ${label} yang berlaku sekarang: ${rupiah(otomatis[kunci])}`}
+                    aria-label={`Pakai angka ${label} saat ini`}
+                    className="flex h-control-sm w-control-sm shrink-0 items-center justify-center rounded-sm border border-border text-fg-subtle transition-colors hover:border-primary hover:bg-primary-subtle hover:text-primary"
+                  >
+                    ↺
+                  </button>
+                </span>
+              </BarisRincian>
+            ))}
+
+            {sc.custom.map((c) => (
+              <BarisRincian
+                key={c.id}
+                label={
+                  <IsianTeks
+                    nilai={c.label}
+                    className="w-full"
+                    ariaLabel="Nama komponen custom"
+                    onUbah={(t) => setCustom(c.id, (x) => ({ ...x, label: t }))}
+                  />
+                }
+              >
+                <span className="flex items-center gap-1.5">
+                  <IsianAngka
+                    nilai={c.nilai}
+                    awalan="Rp"
+                    className="w-32"
+                    ariaLabel={`Nilai ${c.label || "komponen custom"}`}
+                    onUbah={(n) => setCustom(c.id, (x) => ({ ...x, nilai: n }))}
+                  />
+                  <TombolHapus
+                    label={`Hapus komponen ${c.label || "custom"}`}
+                    onClick={() => hapusCustom(c.id)}
+                  />
+                </span>
+              </BarisRincian>
+            ))}
+
+            <BarisRincian label="Total COGS" jenis="subtotal">
+              {rupiah(cogs)}
+            </BarisRincian>
+          </Rincian>
+        </div>
+
+        <div className="mt-3">
+          <Tombol jenis="garis" onClick={tambahCustom}>
+            + Tambah komponen
+          </Tombol>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-md border border-border bg-surface-muted p-3">
+          <div>
+            <p className="text-meta text-fg-muted">Gross profit / botol</p>
+            <p className="mt-0.5">
+              <Nilai nilai={sc.harga - cogs} className="text-card-title" />
+            </p>
+          </div>
+          <Nilai nilai={gpm} jenis="persen" className="text-kpi" />
+        </div>
+      </div>
+    </section>
   );
 }

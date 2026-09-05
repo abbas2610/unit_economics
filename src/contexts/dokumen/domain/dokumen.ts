@@ -24,28 +24,10 @@ import { dimensiAwal } from "@/contexts/asumsi/domain/kemasan";
 import type { Campuran } from "@/contexts/fragrance/domain/campuran";
 import { campuranAwal } from "@/contexts/fragrance/domain/campuran";
 import type { LegalPerVarian, Varian } from "@/contexts/fragrance/domain/varian";
-import { legalPerVarianAwal, rataUsdPerLiter, varianAwal } from "@/contexts/fragrance/domain/varian";
+import { legalPerVarianAwal, varianAwal } from "@/contexts/fragrance/domain/varian";
 import type { Supplier } from "@/contexts/supplier/domain/supplier";
 import { supplierAwal } from "@/contexts/supplier/domain/supplier";
-import type { Skenario } from "@/contexts/unit-economics/domain/skenario";
-
-/**
- * Variabel yang digeser di analisis sensitivitas.
- *
- * Terpisah dari asumsi, dan itu inti tab 6: menggesernya TIDAK boleh mengubah
- * angka yang sebenarnya. Tim yang mensimulasikan "kalau kurs 20.000" lalu lupa
- * mengembalikannya akan membawa angka simulasi ke rapat sebagai angka rencana.
- */
-export type Simulasi = {
-  kurs: number;
-  freightPerCBM: number;
-  fragAvgUsdPerLiter: number;
-  wastePct: number;
-  susutPct: number;
-  hargaKecil: number;
-  hargaBesar: number;
-  targetOmzet: number;
-};
+import type { KomponenCustom, Skenario } from "@/contexts/unit-economics/domain/skenario";
 
 export type Dokumen = {
   /** Bentuk dokumen. Naik hanya kalau migrasi dibutuhkan. */
@@ -105,7 +87,8 @@ export type Dokumen = {
   };
 
   skenario: Skenario[];
-  simulasi: Simulasi;
+  /** Biaya tambahan bebas nama & angka di Initial Investment — Category 1. */
+  investasiCustom: KomponenCustom[];
 };
 
 export function dokumenAwal(): Dokumen {
@@ -127,27 +110,6 @@ export function dokumenAwal(): Dokumen {
     marketing: { offline: 300_000_000, online: 200_000_000, lainnya: 50_000_000 },
     opsi: { amortisasiMolding: false },
     skenario: [],
-    simulasi: {
-      kurs: asumsi.kurs,
-      freightPerCBM: asumsi.freightPerCBM,
-      fragAvgUsdPerLiter: rataUsdPerLiter(varian),
-      wastePct: asumsi.wastePct,
-      susutPct: 15,
-      hargaKecil: 200_000,
-      hargaBesar: 350_000,
-      targetOmzet: 100_000_000,
-    },
+    investasiCustom: [],
   };
 }
-
-/** Nilai simulasi yang mencerminkan kondisi saat ini — tombol "sync" di tab 6. */
-export const simulasiDariDokumen = (dok: Dokumen): Simulasi => ({
-  kurs: dok.asumsi.kurs,
-  freightPerCBM: dok.asumsi.freightPerCBM,
-  fragAvgUsdPerLiter: rataUsdPerLiter(dok.varian),
-  wastePct: dok.asumsi.wastePct,
-  susutPct: dok.campuran.susutPct,
-  hargaKecil: dok.harga.kecil,
-  hargaBesar: dok.harga.besar,
-  targetOmzet: dok.simulasi.targetOmzet,
-});

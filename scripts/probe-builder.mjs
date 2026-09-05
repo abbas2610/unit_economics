@@ -47,7 +47,6 @@ const TAB = [
   { path: "/supplier-besar/index.html", judul: "Supplier Botol Besar" },
   { path: "/investasi/index.html", judul: "Initial Investment" },
   { path: "/unit-economics/index.html", judul: "Unit Economics per Botol" },
-  { path: "/sensitivitas/index.html", judul: "Sensitivity Analysis" },
 ];
 
 const peramban = await chromium.launch();
@@ -409,7 +408,6 @@ console.log("\n=== 8. Klik tab dari dalam aplikasi tidak 404 ===");
     "Supplier Botol Besar",
     "Initial Investment",
     "Unit Economics",
-    "Sensitivity Analysis",
   ];
 
   await hal.goto(BASE + "/index.html", { waitUntil: "networkidle" });
@@ -444,6 +442,137 @@ kontrol(
   "[kontrol negatif] URL tab tanpa index.html memang 404 di server statis ini",
   await hal
     .goto(BASE + "/unit-economics/", { waitUntil: "domcontentloaded" })
+    .then((r) => (r?.status() ?? 0) < 400)
+    .catch(() => false),
+);
+
+/* ═══════════════ 9. Skenario Custom: kartu, reset, komponen custom ══ */
+console.log("\n=== 9. Skenario Custom: kartu hidup, bukan tombol tanpa handler ===");
+
+const angkaDari = (teks) => Number(String(teks).replace(/[^\d-]/g, "")) || 0;
+
+{
+  await hal.goto(BASE + "/unit-economics/index.html", { waitUntil: "networkidle" });
+  await hal.getByRole("button", { name: "+ Tambah skenario Botol Kecil" }).click();
+
+  /* BUKAN `hasText` — nama kartu hidup di dalam VALUE input, bukan sebagai
+     teks node, jadi `textContent` tidak pernah melihatnya. Dokumen bersih
+     (Supabase diputus di atas) berarti ini satu-satunya kartu yang ada. */
+  const kartu = hal.locator("section.card").first();
+  cek("kartu skenario baru muncul", (await hal.locator("section.card").count()) === 1);
+
+  const totalCogs = () =>
+    kartu
+      .locator("div", { hasText: /^Total COGS/ })
+      .last()
+      .textContent()
+      .then(angkaDari);
+
+  const cogsAwal = await totalCogs();
+  cek("Total COGS awal terbaca dan bukan nol", cogsAwal > 0, `Rp${cogsAwal}`);
+
+  /* Baris "otomatis" (fragrance/botol/aksesoris) sekarang field biasa yang
+     bisa diedit — buktikan mengubahnya benar-benar menggerakkan Total COGS,
+     lalu tombol ↺ mengembalikannya persis ke angka semula. */
+  const inputFragrance = kartu.getByLabel(/^Fragrance Oil - /);
+  const fragranceAwal = await inputFragrance.inputValue();
+  await inputFragrance.fill("999999");
+  await inputFragrance.blur();
+  const cogsSetelahEdit = await totalCogs();
+  cek(
+    "mengedit baris yang dulu 'otomatis' menggerakkan Total COGS",
+    cogsSetelahEdit > cogsAwal,
+    `${cogsAwal} → ${cogsSetelahEdit}`,
+  );
+
+  await kartu.getByRole("button", { name: /^Pakai angka Fragrance Oil saat ini/ }).click();
+  const fragranceSetelahReset = await inputFragrance.inputValue();
+  const cogsSetelahReset = await totalCogs();
+  cek(
+    "tombol ↺ mengembalikan field ke angka semula",
+    fragranceSetelahReset === fragranceAwal,
+    `${fragranceSetelahReset} vs ${fragranceAwal}`,
+  );
+  cek(
+    "…dan Total COGS ikut kembali ke angka semula",
+    cogsSetelahReset === cogsAwal,
+    `${cogsSetelahReset} vs ${cogsAwal}`,
+  );
+
+  /* Komponen custom: biaya yang tidak punya padanan di tab mana pun. */
+  await kartu.getByRole("button", { name: "+ Tambah komponen" }).click();
+  await kartu.getByLabel("Nilai komponen custom").fill("7500");
+  await kartu.getByLabel("Nama komponen custom").fill("Tarif impor");
+  const cogsSetelahCustom = await totalCogs();
+  cek(
+    "menambah komponen custom Rp7.500 menaikkan Total COGS persis segitu",
+    cogsSetelahCustom === cogsAwal + 7500,
+    `${cogsAwal} → ${cogsSetelahCustom}`,
+  );
+
+  await kartu.getByRole("button", { name: /^Hapus komponen Tarif impor/ }).click();
+  const cogsSetelahHapus = await totalCogs();
+  cek(
+    "menghapus komponen custom mengembalikan Total COGS",
+    cogsSetelahHapus === cogsAwal,
+    `${cogsSetelahHapus} vs ${cogsAwal}`,
+  );
+}
+
+cek(
+  "tidak ada kartu liar — cuma satu yang benar-benar ditambah",
+  (await hal.locator("section.card").count()) === 1,
+);
+
+/* ═══════════════ 10. Laporan cetak: 4 halaman, tanpa Sensitivity ══ */
+console.log("\n=== 10. Laporan cetak (/cetak) ===");
+
+{
+  await hal.goto(BASE + "/cetak/index.html", { waitUntil: "networkidle" });
+  const teks = (await hal.locator("body").innerText()) ?? "";
+
+  cek("halaman 1 — Asumsi Dasar ada", teks.includes("Asumsi Dasar"));
+  cek("halaman 2 — Perbandingan Supplier ada", teks.includes("Perbandingan Supplier"));
+  cek("halaman 3 — Initial Investment ada", teks.includes("Initial Investment"));
+  cek("halaman 4 — Unit Economics ada", teks.includes("Unit Economics"));
+
+  /* Render PDF sungguhan lewat mesin cetak Chromium — bukan cuma menghitung
+     elemen `.cetak-halaman` di DOM, yang bisa lolos walau CSS `break-after`-nya
+     rusak. Jumlah halaman dihitung dari PDF yang benar-benar dihasilkan. */
+  await hal.emulateMedia({ media: "print" });
+  const pdf = await hal.pdf({ format: "A4", printBackground: true });
+  const jumlahHalaman = (pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
+  cek(
+    "PDF yang dihasilkan persis 4 halaman (bukan meluber)",
+    jumlahHalaman === 4,
+    `${jumlahHalaman} halaman`,
+  );
+
+  /* ⚠️ Ini yang pernah rusak diam-diam: kolom kedua tabel supplier ("Model
+     Batu (B)") sempat kepotong separuh saat Kecil|Besar dipaksa berdampingan
+     untuk hemat tinggi halaman — `overflow-x-auto` di layar diam-diam
+     memotong isinya di kertas, bukan menyediakan scrollbar. Teks tetap ADA
+     di DOM (innerText tidak berubah), jadi hanya `scrollWidth > clientWidth`
+     yang menangkapnya. */
+  const luber = await hal.evaluate(() =>
+    [...document.querySelectorAll(".cetak-dokumen table")].some(
+      (t) => t.scrollWidth > t.clientWidth + 1,
+    ),
+  );
+  cek("tabel di laporan cetak tidak ada yang meluber ke samping (terpotong)", !luber);
+
+  cek(
+    "kedua supplier botol kecil (Gelas Bening & Model Batu) utuh, tidak kepotong",
+    teks.includes("GELAS BENING") && teks.includes("MODEL BATU"),
+  );
+
+  await hal.emulateMedia({ media: null });
+}
+
+kontrol(
+  "[kontrol negatif] /sensitivitas/index.html memang sudah 404 — dihapus, bukan cuma disembunyikan dari nav",
+  await hal
+    .goto(BASE + "/sensitivitas/index.html")
     .then((r) => (r?.status() ?? 0) < 400)
     .catch(() => false),
 );

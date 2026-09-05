@@ -161,7 +161,7 @@ console.log("\n=== 2. 'Beli 100 botol saja' bisa dimodelkan ===");
 
   const kartu = hal.locator("section.card").first();
   const teksKartu = await kartu.innerText();
-  cek("kartu menyebut 100 pcs dibeli", /100 pcs dibeli/.test(teksKartu), teksKartu.match(/[\d.]+ pcs dibeli/)?.[0] ?? "");
+  cek("kartu menyebut 100 pcs, bukan 8.500", /\b100 pcs\b/.test(teksKartu) && !/8\.500/.test(teksKartu), teksKartu.match(/[\d.]+ pcs/)?.[0] ?? "");
 
   /* Angka yang jadi keluhan: harga botol $0,48 × 100 pcs, bukan × 8.500. */
   const total = angkaDari(await kartu.locator("p.text-card-title").first().innerText());

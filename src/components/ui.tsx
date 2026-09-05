@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * Komponen bersama. Semua warna, ukuran, dan radius datang dari token —
+ * Komponen bersama. Semua warna, ukuran, dan radius datang dari token -
  * tidak ada satu pun hex di berkas ini, dan `npm run probe:token` menolak lulus
  * kalau ada yang masuk.
  *
  * ⚠️ Berkas ini `"use client"`. Fungsi murni yang dipakai lintas server/klien
- * TIDAK boleh tinggal di sini — tempatnya `src/bersama/`. Lihat catatan panjang
+ * TIDAK boleh tinggal di sini - tempatnya `src/bersama/`. Lihat catatan panjang
  * di `src/bersama/cx.ts`; aturan itu lahir dari kegagalan runtime yang lolos
  * build dan typecheck.
  */
@@ -24,7 +24,7 @@ export function Kartu({
 }: {
   children: ReactNode;
   className?: string;
-  /** Tanpa padding — untuk kartu yang isinya tabel penuh lebar. */
+  /** Tanpa padding - untuk kartu yang isinya tabel penuh lebar. */
   padat?: boolean;
 }) {
   return <div className={cx("card", padat ? "" : "p-5", className)}>{children}</div>;
@@ -48,10 +48,21 @@ export function KepalaHalaman({
   );
 }
 
-export function JudulBlok({ judul, sub }: { judul: ReactNode; sub?: ReactNode }) {
+export function JudulBlok({
+  judul,
+  sub,
+  aksen,
+}: {
+  judul: ReactNode;
+  sub?: ReactNode;
+  /** Menonjolkan blok ini dari kartu-kartu polos di sekitarnya - bar warna
+   *  di kiri + judul berwarna, dipakai untuk satu bagian yang memang beda
+   *  perannya (mis. area yang seluruhnya bisa diedit bebas), bukan hiasan. */
+  aksen?: boolean;
+}) {
   return (
-    <div className="mb-4">
-      <h2 className="text-card-title text-fg">{judul}</h2>
+    <div className={cx("mb-4", aksen && "border-l-4 border-primary pl-3")}>
+      <h2 className={cx("text-card-title", aksen ? "text-primary" : "text-fg")}>{judul}</h2>
       {sub ? <p className="mt-1 text-meta text-fg-subtle">{sub}</p> : null}
     </div>
   );
@@ -94,7 +105,7 @@ const kelasKotak =
  *
  * ## Dua state, dan kenapa keduanya perlu ada
  *
- * Saat kotak sedang difokus, nilainya adalah apa yang diketik — apa adanya,
+ * Saat kotak sedang difokus, nilainya adalah apa yang diketik - apa adanya,
  * termasuk keadaan setengah jadi seperti `"1.2"` yang sedang menuju `"1.250"`.
  * Memformat ulang tiap ketikan memindahkan kursor ke ujung dan membuat angka
  * tidak bisa disunting di tengah; itu keluhan pertama tiap kotak angka yang
@@ -525,7 +536,7 @@ export function Donat({
             <span className="tabular font-semibold text-fg">
               {total > 0
                 ? (i === 0 ? pct0 : 100 - pct0).toFixed(1).replace(".", ",") + "%"
-                : "—"}
+                : "-"}
             </span>
           </li>
         ))}
@@ -539,7 +550,7 @@ export function Donat({
  *
  * Menggantikan gambar botol yang terisi di builder lama. Botolnya bagus dilihat
  * dan sulit dibaca: tinggi cairan di dalam bentuk yang menyempit ke leher bukan
- * proporsi linear, jadi mata membaca porsi yang salah — dan dua botol
+ * proporsi linear, jadi mata membaca porsi yang salah - dan dua botol
  * berdampingan tidak bisa dibandingkan sama sekali karena bentuknya berbeda.
  * Batang lurus dengan skala yang sama menjawab pertanyaan yang sama, dan
  * menjawabnya dengan benar.
@@ -605,7 +616,7 @@ export const Peringatan = ({ children }: { children: ReactNode }) => (
  *
  * Tanpa state sendiri: kapan ia hilang diputuskan `DokumenProvider`, yang
  * memang sudah memegang timer-nya. Menyalin "sedang tampil" ke state di sini
- * berarti dua sumber untuk satu keadaan — dan yang kedua cuma bisa salah.
+ * berarti dua sumber untuk satu keadaan - dan yang kedua cuma bisa salah.
  *
  * `role="status"` membuat pembaca layar mengumumkannya tanpa memindahkan fokus;
  * `alert` akan memotong apa pun yang sedang dibaca demi kata "Tersimpan".

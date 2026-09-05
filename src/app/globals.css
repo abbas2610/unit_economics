@@ -46,4 +46,63 @@
   .card {
     break-inside: avoid;
   }
+
+  /* ── Laporan cetak (`/cetak`) — empat halaman, satu tab per halaman ──
+     Rute ini SATU-SATUNYA yang memakai skala ini; tab lain yang dicetak
+     manual (Ctrl+P) tetap memakai skala layar biasa, tidak ikut mengecil.
+     Override token `--text-*` di sini (bukan di theme.css) SENGAJA — token
+     di theme.css dijaga `probe:token` supaya skala LAYAR tetap padat tanpa
+     16px; laporan cetak medium yang berbeda dengan kebutuhan berbeda (banyak
+     angka di kertas fisik, bukan discroll), dan tidak menyentuh skala layar
+     sama sekali. */
+  .cetak-dokumen {
+    --text-label: 8px;
+    --text-label--line-height: 11px;
+    --text-badge: 8px;
+    --text-badge--line-height: 11px;
+    --text-meta: 9px;
+    --text-meta--line-height: 12px;
+    --text-body: 10px;
+    --text-body--line-height: 13px;
+    --text-card-title: 12px;
+    --text-card-title--line-height: 15px;
+    --text-page-title: 16px;
+    --text-page-title--line-height: 19px;
+    --text-kpi: 15px;
+    --text-kpi--line-height: 18px;
+  }
+
+  /* `.th`/`.td` TIDAK ikut aturan var() di atas (lihat theme.css — keduanya
+     menulis `font-size` literal, bukan `var(--text-*)`), jadi disamakan
+     manual ke skala yang sama dengan `Baris`/`KV` di sini. Sebelum ini
+     ukurannya beda sendiri (8,5px/9px) — kelihatan sebagai "tabel Perbandingan
+     Supplier hurufnya lebih kecil dari halaman lain" walau sama-sama di
+     bawah `.cetak-dokumen`. */
+  .cetak-dokumen .th {
+    height: auto;
+    padding: 4px 6px;
+    font-size: var(--text-meta);
+  }
+
+  .cetak-dokumen .td {
+    padding: 4px 6px;
+    font-size: var(--text-body);
+    line-height: 1.3;
+  }
+
+  /* Keterangan MOQ ("MOQ 10.000 pcs mengikat") berguna saat menyunting
+     supplier di layar, tapi di laporan cetak cuma menambah baris tanpa
+     menambah keputusan yang bisa diambil dari kertas. */
+  .cetak-dokumen .moq-keterangan {
+    display: none;
+  }
+
+  /* Satu tab per halaman fisik. Yang terakhir tidak perlu memaksa halaman
+     kosong tambahan sesudahnya. */
+  .cetak-halaman {
+    break-after: page;
+  }
+  .cetak-halaman:last-child {
+    break-after: auto;
+  }
 }

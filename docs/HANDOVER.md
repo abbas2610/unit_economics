@@ -147,11 +147,20 @@ Jangan dikerjakan setengah.
 ### Riwayat versi dokumen
 
 Tidak ada. Yang terakhir menulis menang, dan yang tertimpa tidak bisa
-dikembalikan. Tombol **Export data** adalah satu-satunya cadangan, dan ia manual.
+dikembalikan.
+
+⚠️ **Tombol Export/Import JSON (dulu satu-satunya cadangan manual) sudah
+dihapus dari topbar** atas permintaan tim — dianggap berlebih begitu Supabase
+jadi sumber kebenaran bersama. Konsekuensinya: kalau satu penulisan yang salah
+menimpa dokumen bersama, **sekarang tidak ada jalan mundur sama sekali**, bukan
+cuma "kalau kebetulan ada yang sempat export manual". `bacaDokumen()` di
+`migrasi.ts` masih menerima kedua bentuk payload (jadi berkas JSON lama masih
+bisa di-import lewat DevTools/console kalau darurat), tapi tidak ada lagi
+tombolnya di UI.
 
 Kalau ini jadi masalah, yang paling murah: kolom `riwayat jsonb[]` yang menyimpan
 sepuluh versi terakhir beserta `updated_at`-nya. Bukan `git`-like, cukup "kembali
-ke kemarin sore".
+ke kemarin sore" — dan sekarang jadi satu-satunya jalan mundur yang tersisa.
 
 ### Penggabungan konflik
 

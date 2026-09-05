@@ -5,10 +5,10 @@ import { AppShell } from "@/components/app-shell";
 /**
  * Layout untuk seluruh tab builder.
  *
- * `(builder)` adalah route group — tanda kurungnya membuat nama folder ini TIDAK
+ * `(builder)` adalah route group - tanda kurungnya membuat nama folder ini TIDAK
  * muncul di URL, jadi `page.tsx` di dalamnya tetap melayani `/`. Yang didapat
  * dari mengelompokkannya: satu `<DokumenProvider>` di atas keenam tab, sehingga
- * berpindah tab tidak memuat ulang dokumen — dan tidak menghapus perubahan yang
+ * berpindah tab tidak memuat ulang dokumen - dan tidak menghapus perubahan yang
  * belum sempat tersimpan.
  *
  * Berkas ini sengaja BUKAN `"use client"`. Ia cuma merangkai dua komponen klien;

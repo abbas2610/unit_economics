@@ -1,26 +1,26 @@
 "use client";
 
 /**
- * Tab 4 — Initial Investment.
+ * Tab 4 - Initial Investment.
  *
  * Yang dijawab halaman ini satu kalimat: berapa uang yang keluar sebelum botol
  * pertama terjual, dan ke mana perginya.
  *
  * Qty batch di sini **tidak bisa diketik**. Ia hasil produksi dari campuran di
  * tab 1, dan menyediakan kotak isian untuknya berarti membuat angka kedua yang
- * boleh berbeda dari volume cairan yang benar-benar ada — yang berarti membeli
+ * boleh berbeda dari volume cairan yang benar-benar ada - yang berarti membeli
  * botol untuk parfum yang tidak akan pernah jadi.
  */
-import { liter, pcs, persen, rupiah, rupiahRingkas } from "@/bersama/format";
+import { pcs, persen, rupiah, rupiahRingkas } from "@/bersama/format";
 import { boxPerBotol } from "@/contexts/asumsi/domain/asumsi";
 import { initialInvestment } from "@/contexts/investasi/aplikasi/investasi";
 import { useDokumen } from "@/components/dokumen-provider";
 import {
   BarisRincian,
   Bidang,
-  Catatan,
   Donat,
   IsianAngka,
+  IsianTeks,
   JudulBlok,
   KepalaHalaman,
   Kartu,
@@ -31,6 +31,8 @@ import {
   Rincian,
   KepalaRincian,
   Sakelar,
+  Tombol,
+  TombolHapus,
 } from "@/components/ui";
 
 export function InvestasiLayar() {
@@ -38,17 +40,30 @@ export function InvestasiLayar() {
   const inv = initialInvestment(dok);
   const pctProduk = inv.total > 0 ? (inv.produk / inv.total) * 100 : 0;
 
+  const tambahBiayaCustom = () =>
+    ubah((d) => ({
+      ...d,
+      investasiCustom: [
+        ...d.investasiCustom,
+        { id: `invc${d.investasiCustom.length + 1}`, label: "", nilai: 0 },
+      ],
+    }));
+  const setBiayaCustom = (id: string, fn: (c: (typeof dok.investasiCustom)[number]) => (typeof dok.investasiCustom)[number]) =>
+    ubah((d) => ({ ...d, investasiCustom: d.investasiCustom.map((c) => (c.id === id ? fn(c) : c)) }));
+  const hapusBiayaCustom = (id: string) =>
+    ubah((d) => ({ ...d, investasiCustom: d.investasiCustom.filter((c) => c.id !== id) }));
+
   return (
     <>
       <KepalaHalaman
         langkah="Langkah 4"
         judul="Initial Investment"
-        catatan="Pilih supplier yang dipakai untuk masing-masing ukuran botol, lalu atur anggaran marketing. Total sudah termasuk pajak — PPN fragrance dan perizinan botol menempel di komponennya masing-masing."
+        catatan="Pilih supplier yang dipakai untuk masing-masing ukuran botol, lalu atur anggaran marketing. Total sudah termasuk pajak - PPN fragrance dan perizinan botol menempel di komponennya masing-masing."
       />
 
       <Kartu>
         <div className="grid gap-4 md:grid-cols-3">
-          <Bidang label="Supplier botol kecil (15 ML)">
+          <Bidang label={`Supplier botol kecil (${dok.asumsi.mlBotolKecil} ML)`}>
             <select
               className="h-control rounded-md border border-border bg-surface px-2.5 text-body text-fg outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
               value={dok.pilihan.kecilId}
@@ -130,7 +145,7 @@ export function InvestasiLayar() {
           <Kpi
             label="Total Pajak Termasuk"
             nilai={rupiah(inv.totalPajak)}
-            keterangan="PPN + perizinan — sudah di dalam total, bukan tambahan"
+            keterangan="PPN + perizinan - sudah di dalam total, bukan tambahan"
           />
         </PetakKpi>
       </div>
@@ -139,7 +154,7 @@ export function InvestasiLayar() {
         <Petak>
           <Kartu>
             <JudulBlok
-              judul="Rincian — Category 1: Produk"
+              judul="Rincian - Category 1: Produk"
               sub="Mengikuti supplier & asumsi yang sedang dipilih."
             />
             <Rincian>
@@ -161,7 +176,7 @@ export function InvestasiLayar() {
                 {rupiah(inv.qtyBesar * dok.asumsi.oemBesar)}
               </BarisRincian>
               <BarisRincian
-                label={`Perizinan varian — BPOM + Halal (${dok.varian.length} varian)`}
+                label={`Perizinan varian - BPOM + Halal (${dok.varian.length} varian)`}
               >
                 {rupiah(inv.legalVarian)}
               </BarisRincian>
@@ -170,10 +185,10 @@ export function InvestasiLayar() {
               </BarisRincian>
 
               <KepalaRincian>Botol &amp; Packaging</KepalaRincian>
-              <BarisRincian label={`Botol kecil — ${inv.supplierKecil?.nama ?? "—"}`}>
+              <BarisRincian label={`Botol kecil - ${inv.supplierKecil?.nama ?? "-"}`}>
                 {rupiah(inv.invKecil.total)}
               </BarisRincian>
-              <BarisRincian label={`Botol besar — ${inv.supplierBesar?.nama ?? "—"}`}>
+              <BarisRincian label={`Botol besar - ${inv.supplierBesar?.nama ?? "-"}`}>
                 {rupiah(inv.invBesar.total)}
               </BarisRincian>
               <BarisRincian
@@ -192,10 +207,49 @@ export function InvestasiLayar() {
                 {rupiah(inv.fulfillmentTotal)}
               </BarisRincian>
 
+              {dok.investasiCustom.length > 0 ? (
+                <>
+                  <KepalaRincian>Biaya Custom</KepalaRincian>
+                  {dok.investasiCustom.map((c) => (
+                    <BarisRincian
+                      key={c.id}
+                      label={
+                        <IsianTeks
+                          nilai={c.label}
+                          className="w-full"
+                          ariaLabel="Nama biaya custom"
+                          onUbah={(t) => setBiayaCustom(c.id, (x) => ({ ...x, label: t }))}
+                        />
+                      }
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <IsianAngka
+                          nilai={c.nilai}
+                          awalan="Rp"
+                          className="w-32"
+                          ariaLabel={`Nilai ${c.label || "biaya custom"}`}
+                          onUbah={(n) => setBiayaCustom(c.id, (x) => ({ ...x, nilai: n }))}
+                        />
+                        <TombolHapus
+                          label={`Hapus biaya ${c.label || "custom"}`}
+                          onClick={() => hapusBiayaCustom(c.id)}
+                        />
+                      </span>
+                    </BarisRincian>
+                  ))}
+                </>
+              ) : null}
+
               <BarisRincian label="Total Investasi Produk" jenis="utama">
                 {rupiah(inv.produk)}
               </BarisRincian>
             </Rincian>
+
+            <div className="mt-3">
+              <Tombol jenis="garis" onClick={tambahBiayaCustom}>
+                + Tambah biaya
+              </Tombol>
+            </div>
           </Kartu>
 
           <div className="flex flex-col gap-4">
@@ -257,68 +311,6 @@ export function InvestasiLayar() {
         </Petak>
       </div>
 
-      <div className="mt-4">
-        <Kartu>
-          <JudulBlok
-            judul="Catatan MOQ, Kelebihan Stok & Sisa Cairan"
-            sub="Dua arah yang berlawanan. MOQ yang melebihi pesanan meninggalkan botol tanpa isi; pesanan yang lebih kecil dari kapasitas meninggalkan cairan tanpa botol. Keduanya uang yang sudah keluar tanpa barang yang bisa dijual."
-          />
-          <Rincian>
-            <BarisRincian label={`Botol kecil dibeli (terisi ${pcs(inv.qtyKecil)})`}>
-              {pcs(inv.invKecil.qty)}
-            </BarisRincian>
-            <BarisRincian label="→ Kelebihan stok botol kecil">
-              {inv.kelebihanKecil > 0 ? (
-                <span className="text-warning-fg">
-                  {pcs(inv.kelebihanKecil)} ({rupiah(inv.nilaiKelebihanKecil)})
-                </span>
-              ) : (
-                <span className="text-naik">tidak ada</span>
-              )}
-            </BarisRincian>
-            <BarisRincian label="→ Cairan botol kecil tanpa botol">
-              {inv.mlTakTerbotolkanKecil > 0 ? (
-                <span className="text-warning-fg">
-                  {liter(inv.mlTakTerbotolkanKecil / 1000)} (setara{" "}
-                  {pcs(inv.kapasitasKecil - inv.qtyKecil)})
-                </span>
-              ) : (
-                <span className="text-naik">tidak ada</span>
-              )}
-            </BarisRincian>
-            <BarisRincian label={`Botol besar dibeli (terisi ${pcs(inv.qtyBesar)})`}>
-              {pcs(inv.invBesar.qty)}
-            </BarisRincian>
-            <BarisRincian label="→ Kelebihan stok botol besar">
-              {inv.kelebihanBesar > 0 ? (
-                <span className="text-warning-fg">
-                  {pcs(inv.kelebihanBesar)} ({rupiah(inv.nilaiKelebihanBesar)})
-                </span>
-              ) : (
-                <span className="text-naik">tidak ada</span>
-              )}
-            </BarisRincian>
-            <BarisRincian label="→ Cairan botol besar tanpa botol">
-              {inv.mlTakTerbotolkanBesar > 0 ? (
-                <span className="text-warning-fg">
-                  {liter(inv.mlTakTerbotolkanBesar / 1000)} (setara{" "}
-                  {pcs(inv.kapasitasBesar - inv.qtyBesar)})
-                </span>
-              ) : (
-                <span className="text-naik">tidak ada</span>
-              )}
-            </BarisRincian>
-          </Rincian>
-          <div className="mt-4">
-            <Catatan>
-              Nilai kelebihan stok memakai biaya botol per unit <strong>termasuk freight</strong> —
-              botol yang terpaksa dibeli itu benar-benar ikut dikapalkan dan ikut dibayar per CBM.
-              Molding tetap dikecualikan: ia dibayar penuh berapa pun qty-nya, jadi memasukkannya
-              akan melebih-lebihkan modal yang tertahan sebagai barang di gudang.
-            </Catatan>
-          </div>
-        </Kartu>
-      </div>
     </>
   );
 }

@@ -14,13 +14,11 @@
  *                     box packaging
  *                     freight forwarder
  *     Fulfillment     fulfillment
- *                     royalti Miranti
  *                     [amortisasi molding — kalau dinyalakan]
  *
  * Tiga kelompok itu bukan hiasan: yang pertama bergerak dengan harga bahan,
- * yang kedua dengan pilihan supplier, yang ketiga dengan harga jual. Menaruh
- * royalti di kelompok bahan baku akan menyembunyikan fakta bahwa ia satu-satunya
- * komponen COGS yang IKUT NAIK saat harga jual dinaikkan.
+ * yang kedua dengan pilihan supplier, yang ketiga tinggal fulfillment (dan
+ * amortisasi molding kalau dinyalakan).
  */
 import { boxPerBotol, mlBotol, oemPerBotol } from "@/contexts/asumsi/domain/asumsi";
 import type { UkuranBotol } from "@/contexts/asumsi/domain/asumsi";
@@ -127,7 +125,6 @@ export type RincianUnit = {
   botolPacking: number;
 
   fulfillment: number;
-  royalti: number;
   /** Molding ÷ qty produksi. `0` kalau opsi amortisasi mati. */
   amortisasiMolding: number;
   /**
@@ -171,10 +168,6 @@ export function unitEconomics(dok: Dokumen, ukuran: UkuranBotol): RincianUnit {
   const box = boxPerBotol(dok.asumsi);
   const freight = sup ? freightPerBotol(sup) : 0;
 
-  /* Royalti dihitung dari HARGA JUAL, bukan dari biaya. Itu sebabnya menaikkan
-     harga tidak menaikkan gross profit sebesar kenaikannya. */
-  const royalti = harga * ((dok.asumsi.mirantiPct || 0) / 100);
-
   /* Serapan biaya sekali-bayar ke unit cost, hanya kalau dinyalakan DAN ada
      botol jadi untuk membaginya. `produksi === 0` (mis. qty fragrance belum
      diisi) akan menghasilkan Infinity yang menjalar jadi COGS `Infinity` dan
@@ -191,7 +184,7 @@ export function unitEconomics(dok: Dokumen, ukuran: UkuranBotol): RincianUnit {
   const bahanBaku = fragrance + oem;
   const botol = satuan.botol + satuan.perizinan;
   const botolPacking = botol + satuan.aksesoris + box + freight;
-  const cogs = bahanBaku + botolPacking + dok.asumsi.fulfillment + royalti + amortisasi;
+  const cogs = bahanBaku + botolPacking + dok.asumsi.fulfillment + amortisasi;
   const grossProfit = harga - cogs;
 
   return {
@@ -212,7 +205,6 @@ export function unitEconomics(dok: Dokumen, ukuran: UkuranBotol): RincianUnit {
     freight,
     botolPacking,
     fulfillment: dok.asumsi.fulfillment,
-    royalti,
     amortisasiMolding,
     amortisasiKelebihan,
     amortisasi,

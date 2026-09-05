@@ -27,7 +27,6 @@
  *
  * Tiap kelompok punya kontrol negatif.
  */
-import { ML_BOTOL_KECIL } from "@/contexts/asumsi/domain/asumsi";
 import { pcsPerCBM, volumeBotol } from "@/contexts/asumsi/domain/kemasan";
 import { biayaFragrancePerBotol, rataUsdPerLiter } from "@/contexts/fragrance/domain/varian";
 import { investasiSupplier } from "@/contexts/supplier/domain/supplier";
@@ -40,7 +39,6 @@ import {
   hasilProduksi,
   unitEconomics,
 } from "@/contexts/unit-economics/aplikasi/unit-economics";
-import { jalankanSkenario, targetPenjualan, tornado } from "@/contexts/sensitivitas/aplikasi/sensitivitas";
 
 let lulus = 0;
 let gagal = 0;
@@ -80,13 +78,17 @@ console.log("\n=== 1. Sama persis dengan builder HTML sebelum port ===");
   sama("botol kecil (harga + perizinan 10%) Rp8.976", k.botol, 8976);
   sama("aksesoris + cap botol kecil Rp10.030", k.aksesoris, 10030);
   dekat("freight/botol kecil Rp2.139,364", k.freight, 2139.3643, 0.001);
-  dekat("COGS botol kecil Rp65.372,276", k.cogs, 65372.276, 0.001);
-  dekat("gross margin botol kecil 67,314%", k.grossMargin, 67.31386, 1e-4);
+  /* Angka regresi di bawah TIDAK LAGI sama dengan builder HTML sebelum port —
+     builder lama masih menghitung royalti Miranti (2% dari harga jual), dan
+     royalti itu sudah dihapus total dari aplikasi (lihat skenario.ts). Angka
+     ini sekarang golden value pasca-royalti, bukan pasca-port. */
+  dekat("COGS botol kecil Rp61.372,276 (tanpa royalti)", k.cogs, 61372.276, 0.001);
+  dekat("gross margin botol kecil 69,314%", k.grossMargin, 69.31386, 1e-4);
 
   sama("botol besar (harga + perizinan) Rp17.600", b.botol, 17600);
   dekat("freight/botol besar Rp3.937,008", b.freight, 3937.00787, 0.001);
-  dekat("COGS botol besar Rp73.049,753", b.cogs, 73049.75287, 0.001);
-  dekat("gross margin botol besar 79,129%", b.grossMargin, 79.12864, 1e-4);
+  dekat("COGS botol besar Rp66.049,753 (tanpa royalti)", b.cogs, 66049.75287, 0.001);
+  dekat("gross margin botol besar 81,129%", b.grossMargin, 81.12864, 1e-4);
 
   const i = initialInvestment(awal);
   sama("pembelian fragrance sebelum PPN Rp3.145.000", i.fragranceDasar, 3_145_000);
@@ -100,7 +102,9 @@ console.log("\n=== 1. Sama persis dengan builder HTML sebelum port ===");
   dekat("total initial investment Rp1.494.101.672", i.total, 1_494_101_671.77, 0.01);
   sama("total pajak termasuk Rp29.605.950", i.totalPajak, 29_605_950);
 
-  sama("break-even 9.754 pcs", breakEven(k, b, i.total), 9754);
+  /* Juga bergeser oleh penghapusan royalti — COGS lebih rendah, margin lebih
+     tebal, jadi lebih sedikit botol yang perlu terjual untuk balik modal. */
+  sama("break-even 9.482 pcs (tanpa royalti)", breakEven(k, b, i.total), 9482);
 }
 
 kontrol(
@@ -141,7 +145,7 @@ console.log("\n=== 3. Waste dikalikan sebelum PPN ===");
 {
   const asumsi = awal.asumsi;
   const nyata = biayaFragrancePerBotol(awal.varian, asumsi, "kecil", 25);
-  const dasar = ML_BOTOL_KECIL * 0.25 * ((rataUsdPerLiter(awal.varian) * asumsi.kurs) / 1000);
+  const dasar = asumsi.mlBotolKecil * 0.25 * ((rataUsdPerLiter(awal.varian) * asumsi.kurs) / 1000);
   dekat("biaya = dasar × (1+waste) × (1+PPN)", nyata, dasar * 1.3 * 1.11, 1e-9);
 
   const tanpaWaste = biayaFragrancePerBotol(awal.varian, { ...asumsi, wastePct: 0 }, "kecil", 25);
@@ -152,7 +156,7 @@ console.log("\n=== 3. Waste dikalikan sebelum PPN ===");
   dekat(
     "botol besar 100 mL memakai biang persis 100/15 kali botol kecil",
     besar / nyata,
-    100 / 15,
+    asumsi.mlBotolBesar / asumsi.mlBotolKecil,
     1e-9,
   );
 }
@@ -213,34 +217,32 @@ kontrol(
   initialInvestment(awal).invKecil.satuan.freight === 0,
 );
 
-/* ═════════════════════════════════════ 5. royalti ikut harga jual ══ */
-console.log("\n=== 5. Royalti dihitung dari harga jual ===");
+/* ═══════════════ 5. COGS tidak lagi bergantung pada harga jual ══ */
+console.log("\n=== 5. Harga jual tidak menggerakkan COGS (royalti sudah dihapus) ===");
 
 {
+  /* Sampai royalti dihapus, menaikkan harga jual ikut menaikkan COGS (royalti
+     = % dari harga), jadi gross profit naik LEBIH KECIL daripada kenaikan
+     harganya. Sekarang tidak ada komponen COGS yang bergantung pada harga
+     jual sama sekali — gross profit harus naik PERSIS sebesar kenaikan
+     harga, rupiah demi rupiah. */
   const naikHarga: Dokumen = { ...awal, harga: { ...awal.harga, kecil: 400_000 } };
   const a = unitEconomics(awal, "kecil");
   const b = unitEconomics(naikHarga, "kecil");
 
-  dekat("royalti = 2% dari harga jual", a.royalti, 200_000 * 0.02, 1e-9);
-  dekat("harga dua kali lipat → royalti dua kali lipat", b.royalti / a.royalti, 2, 1e-9);
-  cek("COGS ikut naik saat harga jual naik", b.cogs > a.cogs);
   cek(
-    "gross profit naik LEBIH KECIL daripada kenaikan harga",
-    b.grossProfit - a.grossProfit < 200_000,
-    `naik ${Math.round(b.grossProfit - a.grossProfit)} dari kenaikan harga 200.000`,
+    "[kontrol negatif] COGS memang bukan nol — perbandingan di atas bukan 0 === 0",
+    a.cogs > 0,
+    `COGS = ${a.cogs}`,
   );
+  dekat("COGS TIDAK berubah saat harga jual naik", b.cogs, a.cogs, 1e-9);
   dekat(
-    "selisihnya persis sebesar tambahan royalti",
-    200_000 - (b.grossProfit - a.grossProfit),
-    b.royalti - a.royalti,
+    "gross profit naik PERSIS sebesar kenaikan harga (400.000 − 200.000)",
+    b.grossProfit - a.grossProfit,
+    200_000,
     1e-6,
   );
 }
-
-kontrol(
-  "[kontrol negatif] royalti benar-benar bukan nol",
-  unitEconomics(awal, "kecil").royalti === 0,
-);
 
 /* ══════════════════════════════════════════ 6. COGS = jumlah komponennya ══ */
 console.log("\n=== 6. COGS adalah jumlah komponen yang ditampilkan ===");
@@ -262,7 +264,7 @@ for (const ukuran of ["kecil", "besar"] as const) {
   dekat(
     `[${ukuran}] COGS = seluruh baris yang terlihat di layar`,
     r.cogs,
-    r.bahanBaku + r.botolPacking + r.fulfillment + r.royalti + r.amortisasi,
+    r.bahanBaku + r.botolPacking + r.fulfillment + r.amortisasi,
     1e-9,
   );
   dekat(`[${ukuran}] gross profit = harga − COGS`, r.grossProfit, r.harga - r.cogs, 1e-9);
@@ -347,92 +349,47 @@ kontrol(
   breakEven(unitEconomics(awal, "kecil"), unitEconomics(awal, "besar"), 1) === null,
 );
 
-/* ══════════════════════════════════════════════════ 9. sensitivitas ══ */
-console.log("\n=== 9. Sensitivitas benar-benar menggerakkan angka ===");
+/* ══════════════════════════ 9. biaya custom di Initial Investment ══ */
+console.log("\n=== 9. Biaya custom Initial Investment ===");
 
 {
-  const dasar = jalankanSkenario(awal, awal.simulasi);
-  const acuanK = unitEconomics(awal, "kecil");
+  const iKosong = initialInvestment(awal);
+  cek(
+    "[kontrol negatif] investasiCustom default kosong — kalau tidak, uji di bawah hampa",
+    awal.investasiCustom.length === 0,
+  );
+
+  const satuBaris: Dokumen = {
+    ...awal,
+    investasiCustom: [{ id: "invc1", label: "Sewa gudang", nilai: 12_345_678 }],
+  };
+  const iSatu = initialInvestment(satuBaris);
   dekat(
-    "simulasi pada nilai default = kondisi saat ini",
-    dasar.kecil.cogs,
-    acuanK.cogs,
-    0.01,
+    "satu baris custom menaikkan Category 1 PERSIS sebesar nilainya",
+    iSatu.produk - iKosong.produk,
+    12_345_678,
+    1e-6,
   );
+  dekat("…dan ikut menaikkan total PERSIS sebesar itu juga", iSatu.total - iKosong.total, 12_345_678, 1e-6);
+  sama("Category 2 — marketing tidak ikut bergeser", iSatu.marketing, iKosong.marketing);
 
-  /* ⚠️ Ini yang pernah rusak diam-diam di builder lama: tiap supplier menyimpan
-     `ratePerCBM`-nya sendiri, jadi slider yang cuma mengganti tarif dasar tidak
-     menggerakkan apa pun. */
-  const freightNaik = jalankanSkenario(awal, {
-    ...awal.simulasi,
-    freightPerCBM: awal.asumsi.freightPerCBM * 2,
-  });
-  cek(
-    "slider freight menggerakkan COGS (tarif tiap supplier ikut diskala)",
-    freightNaik.kecil.freight > acuanK.freight * 1.9,
-    `${acuanK.freight.toFixed(0)} → ${freightNaik.kecil.freight.toFixed(0)}`,
-  );
-  cek("slider freight ikut menggerakkan total investasi", freightNaik.investasi.total > dasar.investasi.total);
-
-  const kursNaik = jalankanSkenario(awal, { ...awal.simulasi, kurs: awal.asumsi.kurs * 1.5 });
-  cek("kurs naik menaikkan COGS botol kecil (supplier USD)", kursNaik.kecil.cogs > acuanK.cogs);
-
-  const besarIDR = unitEconomics(awal, "besar");
-  cek(
-    "kurs naik TIDAK menggerakkan harga botol besar (supplier IDR)",
-    Math.abs(kursNaik.besar.botol - besarIDR.botol) < 1e-6,
-  );
-
-  /* Simulasi tidak boleh menyentuh dokumen aslinya. */
-  const salinan = JSON.stringify(awal);
-  jalankanSkenario(awal, { ...awal.simulasi, kurs: 99_999 });
-  sama("dokumen asli tidak berubah setelah simulasi", JSON.stringify(awal), salinan);
-}
-
-kontrol(
-  "[kontrol negatif] kurs memang berpengaruh — kalau tidak, uji di atas hampa",
-  Math.abs(
-    jalankanSkenario(awal, { ...awal.simulasi, kurs: awal.asumsi.kurs * 1.5 }).kecil.cogs -
-      unitEconomics(awal, "kecil").cogs,
-  ) < 1,
-);
-
-/* ══════════════════════════════════════════════════════ 10. tornado ══ */
-console.log("\n=== 10. Tornado ===");
-
-{
-  const t = tornado(awal);
-  sama("lima variabel diuji", t.length, 5);
-  cek(
-    "diurutkan dari dampak terbesar ke gross margin",
-    t.every((b, i) => i === 0 || Math.abs(t[i - 1].deltaMarginPoin) >= Math.abs(b.deltaMarginPoin)),
-    t.map((b) => `${b.kunci}:${b.deltaMarginPoin.toFixed(2)}`).join(" "),
-  );
-  cek("setidaknya satu variabel benar-benar menggeser margin", t.some((b) => Math.abs(b.deltaMarginPoin) > 0.01));
-  cek(
-    "kenaikan biaya menurunkan margin (bertanda negatif)",
-    t.filter((b) => Math.abs(b.deltaMarginPoin) > 0.01).every((b) => b.deltaMarginPoin < 0),
-    t.map((b) => `${b.kunci}:${b.deltaMarginPoin.toFixed(2)}`).join(" "),
+  const duaBaris: Dokumen = {
+    ...awal,
+    investasiCustom: [
+      { id: "invc1", label: "Sewa gudang", nilai: 12_345_678 },
+      { id: "invc2", label: "Konsultan legal", nilai: 5_000_000 },
+    ],
+  };
+  dekat(
+    "dua baris custom dijumlahkan, bukan cuma baris terakhir yang dipakai",
+    initialInvestment(duaBaris).produk - iKosong.produk,
+    12_345_678 + 5_000_000,
+    1e-6,
   );
 }
 
-/* ════════════════════════════════════════════════ 11. target penjualan ══ */
-console.log("\n=== 11. Target penjualan ===");
-
-{
-  const k = unitEconomics(awal, "kecil");
-  const b = unitEconomics(awal, "besar");
-  const t = targetPenjualan(k, b, 100_000_000);
-  const pasang = Math.ceil(100_000_000 / (200_000 + 350_000));
-  sama("pcs = ceil(target ÷ harga sepasang)", t.pcsKecil, pasang);
-  sama("kecil & besar sama banyak", t.pcsKecil, t.pcsBesar);
-  sama("total = dua kali pasang", t.totalPcs, pasang * 2);
-  cek("omzet tercapai ≥ target (karena dibulatkan ke atas)", t.omzetTercapai >= 100_000_000);
-  dekat("gross profit = pcs × (gp kecil + gp besar)", t.grossProfit, pasang * (k.grossProfit + b.grossProfit), 1e-6);
-}
-
-/* ══════════════════════════════════════ 12. asumsi "rata-rata cukup" ══ */
-console.log("\n=== 12. Batas asumsi rata-rata fragrance ===");
+/* ══════════════════════════════════════ 10. asumsi "rata-rata cukup" ══ */
+console.log("\n=== 10. Batas asumsi rata-rata fragrance ===");
 
 {
   /* Unit economics memakai rata-rata harga varian. Itu sah selama sebarannya

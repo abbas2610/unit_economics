@@ -8,7 +8,7 @@
  * Builder lama menyembunyikan lima panel dengan `display:none` dan menukar class
  * `.active`. Yang hilang karenanya bukan kerapian: tidak ada satu pun tab yang
  * bisa ditautkan. "Lihat perbandingan supplier botol besar" cuma bisa
- * disampaikan sebagai instruksi — buka halaman, klik tab ketiga — dan tombol
+ * disampaikan sebagai instruksi - buka halaman, klik tab ketiga - dan tombol
  * back browser melompat keluar dari aplikasi alih-alih kembali ke tab
  * sebelumnya.
  *
@@ -16,11 +16,10 @@
  * duduk di layout, di atas rutenya.
  */
 import { usePathname } from "next/navigation";
-import { useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { BASE_PATH } from "@/bersama/base-path";
 import { cx } from "@/bersama/cx";
 import { dokumenAwal } from "@/contexts/dokumen/domain/dokumen";
-import { bacaDokumen } from "@/contexts/dokumen/domain/migrasi";
 import { Kabar } from "./ui";
 import { useDokumen, type StatusAwan } from "./dokumen-provider";
 
@@ -30,28 +29,31 @@ export const TAB = [
   { href: "/supplier-besar", nomor: 3, label: "Supplier Botol Besar" },
   { href: "/investasi", nomor: 4, label: "Initial Investment" },
   { href: "/unit-economics", nomor: 5, label: "Unit Economics" },
-  { href: "/sensitivitas", nomor: 6, label: "Sensitivity Analysis" },
 ] as const;
 
 /**
- * URL tab yang BENAR-BENAR bisa dituju — dan itu beda antara `next dev` dan
+ * URL tab yang BENAR-BENAR bisa dituju - dan itu beda antara `next dev` dan
  * bundle statis yang dikirim ke abbas.co.id.
  *
  * `next dev` menyajikan tiap rute App Router langsung; path apa adanya sudah
  * cukup. Bundle statis sebaliknya HANYA dilayani proses Next milik repo
  * portfolio, yang menyajikan berkas `public/` cuma pada path PERSISNYA
- * (lihat AGENTS.md — "Tidak ada directory index di produksi"): `.../index.html`
+ * (lihat AGENTS.md - "Tidak ada directory index di produksi"): `.../index.html`
  * → 200, `.../` tanpa nama berkas → 404.
  *
  * Klik `<Link>` Next router sempat dipakai di sini dengan asumsi transisi
- * sisi klien-nya tidak pernah menyentuh URL itu langsung — asumsi itu salah:
+ * sisi klien-nya tidak pernah menyentuh URL itu langsung - asumsi itu salah:
  * navigasi antar tab di produksi 404 persis pada URL yang sama yang 404 kalau
  * diketik manual. Anchor biasa yang menuju berkas persisnya menghindari
  * seluruh mekanisme itu; reload penuh aman di sini karena setiap tab membaca
  * ulang dari `Dokumen` yang sudah tersimpan (localStorage/Supabase), bukan
  * dari state React yang cuma hidup di memori.
+ *
+ * Bukan cuma dipakai tab nav — tombol "Export / Print PDF" juga memakainya
+ * untuk menuju `/cetak`, rute yang sengaja TIDAK ada di `TAB` (bukan tab
+ * biasa, jadi diterima `string` polos, bukan dibatasi union href TAB).
  */
-const tautanTab = (route: (typeof TAB)[number]["href"]): string => {
+const tautanTab = (route: string): string => {
   if (process.env.NODE_ENV !== "production") return route;
   return `${BASE_PATH}${route === "/" ? "" : route}/index.html`;
 };
@@ -61,12 +63,12 @@ const STATUS: Record<StatusAwan, { teks: string; kelas: string }> = {
   menyimpan: { teks: "Menyimpan…", kelas: "text-fg-subtle" },
   tersinkron: { teks: "Tersinkron ke tim", kelas: "text-naik" },
   diperbarui: { teks: "Diperbarui dari tim", kelas: "text-primary" },
-  gagal: { teks: "Gagal sync — tersimpan lokal", kelas: "text-turun" },
+  gagal: { teks: "Gagal sync - tersimpan lokal", kelas: "text-turun" },
   lokal: { teks: "Mode lokal (belum terhubung cloud)", kelas: "text-fg-subtle" },
 };
 
 /**
- * Tombol tema — TANPA state React, dan itu yang membuatnya benar.
+ * Tombol tema - TANPA state React, dan itu yang membuatnya benar.
  *
  * Tema disimpan sebagai class `.dark` di `<html>`, dipasang script sebelum
  * paint (layout.tsx). Menyalinnya ke `useState` melahirkan dua sumber untuk satu
@@ -87,7 +89,7 @@ function TombolTema() {
         try {
           localStorage.setItem("ue-tema", gelapBaru ? "gelap" : "terang");
         } catch {
-          /* mode privat — temanya cuma tidak diingat sesi berikutnya */
+          /* mode privat - temanya cuma tidak diingat sesi berikutnya */
         }
       }}
       aria-label="Ganti tema terang / gelap"
@@ -100,8 +102,7 @@ function TombolTema() {
 }
 
 function Perkakas() {
-  const { dok, ganti, beriKabar } = useDokumen();
-  const berkas = useRef<HTMLInputElement>(null);
+  const { ganti } = useDokumen();
 
   const tombol =
     "h-control-sm rounded-sm border border-white/20 px-2.5 text-meta font-semibold text-white/80 hover:border-white/40 hover:text-white";
@@ -122,54 +123,12 @@ function Perkakas() {
       >
         Reset
       </button>
-      <button
-        type="button"
-        className={tombol}
-        onClick={() => {
-          const blob = new Blob([JSON.stringify(dok, null, 2)], { type: "application/json" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "sos-unit-economics.json";
-          a.click();
-          URL.revokeObjectURL(url);
-          beriKabar("Data diexport");
-        }}
+      <a
+        href={tautanTab("/cetak")}
+        className="flex h-control-sm items-center justify-center rounded-sm bg-primary px-2.5 text-meta font-semibold text-white hover:bg-primary-hover"
       >
-        Export data
-      </button>
-      <button type="button" className={tombol} onClick={() => berkas.current?.click()}>
-        Import data
-      </button>
-      <input
-        ref={berkas}
-        type="file"
-        accept="application/json"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          e.target.value = "";
-          if (!f) return;
-          const pembaca = new FileReader();
-          pembaca.onload = () => {
-            try {
-              /* `bacaDokumen()` menerima bentuk lama maupun baru, jadi berkas
-                 JSON yang di-export builder HTML tetap bisa di-import. */
-              ganti(bacaDokumen(JSON.parse(String(pembaca.result))), "Data diimport");
-            } catch {
-              beriKabar("File tidak bisa dibaca");
-            }
-          };
-          pembaca.readAsText(f);
-        }}
-      />
-      <button
-        type="button"
-        className="h-control-sm rounded-sm bg-primary px-2.5 text-meta font-semibold text-white hover:bg-primary-hover"
-        onClick={() => window.print()}
-      >
-        Print / PDF
-      </button>
+        Export / Print PDF
+      </a>
     </div>
   );
 }
@@ -180,14 +139,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const s = STATUS[status];
 
   /* `basePath` sudah dibuang Next dari `usePathname()`, jadi yang dibandingkan
-     path aplikasi — dan `trailingSlash: true` membuat rutenya berakhir dengan
+     path aplikasi - dan `trailingSlash: true` membuat rutenya berakhir dengan
      garis miring di produksi tapi tidak selalu di `next dev`. Dinormalkan di
      sini supaya tab aktif tidak bergantung pada cara servernya menyajikan URL. */
   const kini = path.replace(/\/+$/, "") || "/";
 
   return (
     <div className="min-h-full">
-      <header className="sticky top-0 z-40 bg-fg" data-cetak="sembunyi">
+      <header className="sticky top-0 z-40 bg-ink" data-cetak="sembunyi">
         <div className="mx-auto flex max-w-container flex-wrap items-center justify-between gap-3 px-5 py-2.5">
           <div>
             <p className="text-card-title text-white">Societies of Strangers</p>
@@ -234,8 +193,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <main className="mx-auto max-w-container px-5 py-6 pb-20">{children}</main>
 
-      <footer className="mx-auto max-w-container px-5 pb-8 text-meta text-fg-subtle">
-        Builder internal — angka awal diturunkan dari sheet &ldquo;New Perfume Unit
+      <footer
+        className="mx-auto max-w-container px-5 pb-8 text-meta text-fg-subtle"
+        data-cetak="sembunyi"
+      >
+        Builder internal - angka awal diturunkan dari sheet &ldquo;New Perfume Unit
         Economics&rdquo; sebagai titik mulai, silakan diganti dengan penawaran riil.
       </footer>
 

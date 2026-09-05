@@ -10,13 +10,15 @@
 export type UkuranBotol = "kecil" | "besar";
 
 /**
- * Isi nominal botol kecil, dalam mL.
+ * Default isi nominal botol kecil, dalam mL — dipakai `asumsiAwal()` dan
+ * migrasi dokumen lama yang belum punya field `mlBotolKecil`.
  *
- * Konstanta, bukan field yang bisa diubah, karena SKU 15 ML itu sendiri yang
- * mendefinisikan "botol kecil" — mengubahnya berarti produk lain, bukan asumsi
- * lain. Botol besar justru belum fix (100 atau 50 ML), jadi ia field.
+ * BUKAN sumber kebenaran lagi: sempat jadi konstanta modul dengan alasan SKU
+ * 15 mL yang mendefinisikan "botol kecil" itu sendiri. Atas permintaan tim,
+ * keduanya (kecil & besar) sekarang sama-sama field bebas diisi — lihat
+ * `mlBotolKecil` di bawah.
  */
-export const ML_BOTOL_KECIL = 15;
+export const ML_BOTOL_KECIL_DEFAULT = 15;
 
 export type Asumsi = {
   /** Kurs USD → IDR. Dipakai tiap supplier bermata uang USD dan harga fragrance. */
@@ -43,13 +45,6 @@ export type Asumsi = {
   ppnPct: number;
   /** Perizinan & legalitas botol, % dari nilai botol per pcs. */
   perizinanPct: number;
-  /**
-   * Royalti Miranti, % dari HARGA JUAL — bukan dari biaya.
-   *
-   * Konsekuensinya sering terlewat: menaikkan harga jual menaikkan komponen ini
-   * juga, jadi gross profit tidak naik sebesar kenaikan harganya.
-   */
-  mirantiPct: number;
 
   /** Box packaging per botol. */
   boxPackaging: number;
@@ -58,13 +53,15 @@ export type Asumsi = {
   /** Fulfillment per botol. */
   fulfillment: number;
 
-  /** Isi botol besar dalam mL — belum fix, 100 atau 50. */
+  /** Isi botol kecil dalam mL. */
+  mlBotolKecil: number;
+  /** Isi botol besar dalam mL. */
   mlBotolBesar: number;
 };
 
 /** Isi nominal satu botol, dalam mL. */
 export const mlBotol = (asumsi: Asumsi, ukuran: UkuranBotol): number =>
-  ukuran === "kecil" ? ML_BOTOL_KECIL : asumsi.mlBotolBesar;
+  ukuran === "kecil" ? asumsi.mlBotolKecil : asumsi.mlBotolBesar;
 
 /** Biaya OEM per botol untuk ukuran tertentu. */
 export const oemPerBotol = (asumsi: Asumsi, ukuran: UkuranBotol): number =>
@@ -87,9 +84,9 @@ export const asumsiAwal = (): Asumsi => ({
   wastePct: 30,
   ppnPct: 11,
   perizinanPct: 10,
-  mirantiPct: 2,
   boxPackaging: 20_000,
   boxAksesoris: 5_000,
   fulfillment: 5_000,
+  mlBotolKecil: ML_BOTOL_KECIL_DEFAULT,
   mlBotolBesar: 100,
 });

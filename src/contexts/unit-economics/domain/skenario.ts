@@ -1,37 +1,52 @@
 /**
- * Skenario perbandingan custom — kolom "kalau harganya segini" di tab 5.
+ * Skenario perbandingan custom — satu kartu "kalau harganya segini" di tab 5.
  *
- * ## Dua jenis baris, dan garis di antaranya yang penting
+ * ## Semua komponen tersimpan, dan kenapa itu berubah dari sebelumnya
  *
- *   - **🔒 Otomatis** — fragrance, botol (sudah termasuk freight), aksesoris.
- *     Ikut asumsi & supplier yang sedang aktif untuk ukuran botol yang dipilih
- *     kolom itu. TIDAK disimpan di skenario; dihitung ulang tiap render.
- *   - **✎ Bisa diubah** — OEM, box, fulfillment, royalti, harga jual.
- *     Disimpan di skenario dan bebas diedit.
+ * Versi awal fitur ini mengunci fragrance/botol/aksesoris sebagai baris
+ * "🔒 Otomatis" — dihitung ulang tiap render dari asumsi & supplier aktif,
+ * TIDAK BOLEH disimpan di skenario, supaya tabel tidak diam-diam menampilkan
+ * harga supplier yang sudah tidak dipakai.
  *
- * Freight dulu ada di baris yang bisa diubah, dan itu berarti mengganti
- * supplier atau tarif freight di tab lain tidak pernah sampai ke sini kalau
- * skenarionya sudah pernah disentuh. Sekarang ia ikut baris "Botol" yang
- * otomatis — sama seperti perizinan, ia bagian dari harga botol, bukan
- * komponen yang berdiri sendiri untuk ditanyakan "kalau segini".
+ * Atas permintaan tim, itu dibalik: SEMUA komponen sekarang tersimpan dan
+ * bebas diedit — termasuk yang dulu terkunci — supaya skenario bisa hidup
+ * sendiri lepas dari asumsi/supplier yang sedang aktif ("bagaimana kalau
+ * harga botol tahun depan segini", ditanya tanpa mengubah tab Supplier).
+ * Risiko yang tadinya dicegah kuncian itu (skenario diam-diam basi begitu
+ * supplier diganti) sekarang ditangani BEDA: SETIAP komponen baku di bawah
+ * punya padanan "hidup" di asumsi/supplier aktif, jadi SEMUANYA dapat tombol
+ * reset eksplisit yang menyalin ulang angka itu — persis pola
+ * `onResetFreight` di `halaman-supplier.tsx` (lihat `otomatisSekarang()` di
+ * `unit-economics-layar.tsx` untuk nilai hidupnya). Basi jadi pilihan yang
+ * kelihatan di layar, bukan kesalahan diam-diam.
  *
- * Batas itu bukan selera. Baris otomatis adalah angka yang sudah punya sumber
- * kebenaran di tab lain; menyalinnya ke tiap skenario berarti mengubah supplier
- * tidak lagi memperbarui perbandingan — dan tabel yang menampilkan harga botol
- * supplier yang sudah tidak dipakai terlihat persis seperti tabel yang benar.
+ * Komponen custom (`custom[]`) melengkapi ini: biaya yang tidak punya
+ * padanan di tab lain sama sekali (tidak ada "nilai hidup" untuk direset),
+ * jadi pertanyaan "kalau ada biaya tambahan X" bisa dijawab tanpa memaksa
+ * pengguna menumpangkannya ke salah satu baris baku.
  *
- * Baris yang bisa diubah justru sebaliknya: gunanya memang menanyakan "bagaimana
- * kalau OEM-nya bukan segitu", dan menguncinya ke asumsi menghapus alasan tabel
- * ini ada.
+ * Royalti sempat jadi salah satu baris baku (persentase dari harga jual,
+ * lihat riwayat git) — dihapus total begitu skema royaltinya tidak lagi
+ * berlaku. Kalau kerja sama semacam ini muncul lagi, tambahkan lagi sebagai
+ * baris baru di sini, bukan menghidupkan kembali field yang sudah dibuang.
  */
 import type { UkuranBotol } from "@/contexts/asumsi/domain/asumsi";
 
-/** Komponen yang disimpan per skenario dan bebas diedit. */
+/** Komponen biaya baku, satu per skenario. Semuanya tersimpan & bebas diedit. */
 export type KomponenSkenario = {
+  fragrance: number;
+  botol: number;
+  aksesoris: number;
   oem: number;
   box: number;
   fulfillment: number;
-  royalti: number;
+};
+
+/** Satu baris biaya yang ditambahkan sendiri oleh pengguna. */
+export type KomponenCustom = {
+  id: string;
+  label: string;
+  nilai: number;
 };
 
 export type Skenario = KomponenSkenario & {
@@ -39,37 +54,26 @@ export type Skenario = KomponenSkenario & {
   nama: string;
   ukuran: UkuranBotol;
   harga: number;
+  /** Baris tambahan bebas nama & angka. Kosong = belum ada yang ditambah. */
+  custom: KomponenCustom[];
 };
 
-/** Urutan & label baris yang bisa diedit. Satu sumber untuk tabel dan probe. */
-export const BARIS_SKENARIO: ReadonlyArray<readonly [keyof KomponenSkenario, string]> = [
-  ["oem", "OEM"],
-  ["box", "Box Packaging"],
-  ["fulfillment", "Fulfillment"],
-  ["royalti", "Royalti"],
-] as const;
-
-/** Label baris yang terkunci ke asumsi & supplier aktif. */
-export const BARIS_TERKUNCI = [
-  ["fragrance", "Fragrance Oil"],
-  ["botol", "Botol (unit + perizinan + freight)"],
-  ["aksesoris", "Aksesoris + Cap"],
-] as const;
-
 /**
- * COGS satu skenario: komponen yang diedit + komponen otomatis dari unit
- * economics ukuran yang dipilih.
- *
- * Sengaja menerima ketiga nilai otomatis sebagai argumen alih-alih menghitungnya
- * sendiri: fungsi ini tinggal di `domain/`, dan menariknya ke `aplikasi/` cuma
- * supaya ia bisa memanggil unit economics akan memindahkan aritmetika paling
- * sederhana di berkas ini ke lapisan yang paling sulit diuji.
+ * Urutan & label seluruh baris komponen baku. Satu sumber untuk kartu dan
+ * probe. Semuanya punya nilai hidup di asumsi/supplier aktif — lihat
+ * `otomatisSekarang()` di `unit-economics-layar.tsx` — jadi semuanya dapat
+ * tombol reset di kartu.
  */
-export const cogsSkenario = (
-  sc: Skenario,
-  otomatis: { fragrance: number; botol: number; aksesoris: number },
-): number =>
-  BARIS_SKENARIO.reduce((a, [k]) => a + (sc[k] || 0), 0) +
-  otomatis.fragrance +
-  otomatis.botol +
-  otomatis.aksesoris;
+export const BARIS_KOMPONEN: ReadonlyArray<{ kunci: keyof KomponenSkenario; label: string }> = [
+  { kunci: "fragrance", label: "Fragrance Oil" },
+  { kunci: "botol", label: "Botol (unit + perizinan + freight)" },
+  { kunci: "aksesoris", label: "Aksesoris + Cap" },
+  { kunci: "oem", label: "OEM" },
+  { kunci: "box", label: "Box Packaging" },
+  { kunci: "fulfillment", label: "Fulfillment" },
+] as const;
+
+/** COGS satu skenario: seluruh komponen baku + seluruh baris custom. */
+export const cogsSkenario = (sc: Skenario): number =>
+  BARIS_KOMPONEN.reduce((a, { kunci }) => a + (sc[kunci] || 0), 0) +
+  sc.custom.reduce((a, c) => a + (c.nilai || 0), 0);

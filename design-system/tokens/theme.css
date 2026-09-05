@@ -31,6 +31,14 @@
   --color-fg-muted: #5b6072; /* subjudul, header tabel    6,3:1    */
   --color-fg-subtle: #6b7086; /* keterangan                4,9:1    */
 
+  /* Topbar SELALU gelap, di kedua tema — dulu memakai `bg-fg` sebagai jalan
+     pintas. `--color-fg` justru DIBALIK di tema gelap (jadi terang, untuk
+     teks di atas latar gelap), jadi topbar ikut jadi TERANG di tema gelap —
+     teks putihnya lalu menghilang di atas latar terang. `--color-ink`
+     sengaja identik di kedua tema, sama seperti `--color-primary` di
+     bawah — nilainya diulang di blok `.dark`, bukan dihilangkan. */
+  --color-ink: #161a2b;
+
   /* ---------- Brand ----------
      ⚠️ Builder lama memakai #5B7FFF sebagai aksen dan mengalasi teks putih di
      atasnya. Rasionya hanya **3,5:1** — GAGAL AA, dan gagalnya tidak terlihat
@@ -76,17 +84,17 @@
   --color-neutral-fg: #5b6072;
 
   /* ---------- Tipografi ----------
-     Plus Jakarta Sans dipertahankan dari builder lama — itu identitas yang
-     sudah dikenali tim. Yang berubah cara memuatnya: `next/font` menaruh
-     berkasnya di origin sendiri, bukan `<link>` ke fonts.googleapis.com yang
-     menambah satu permintaan pihak ketiga di jalur render.
+     Arial di seluruh aplikasi, atas permintaan tim — bukan Plus Jakarta Sans
+     (builder lama) lagi. Arial font sistem: tidak ada berkas yang dimuat,
+     tidak ada `next/font`, tidak ada permintaan ke fonts.googleapis.com.
 
-     Mono dipakai HANYA untuk angka. Rupiah di kolom yang lebarnya berbeda tidak
-     bisa dibandingkan tanpa dibaca satu per satu. */
-  --font-sans:
-    var(--font-jakarta), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    Roboto, sans-serif;
-  --font-mono: var(--font-mono-angka), ui-monospace, Menlo, Consolas, monospace;
+     `--font-mono` TIDAK diberi typeface monospace terpisah: alasan sebelumnya
+     ("rupiah di kolom yang lebarnya berbeda tidak bisa dibandingkan tanpa
+     dibaca satu per satu") sudah ditangani `font-variant-numeric: tabular-nums`
+     di kelas `.tabular` — itu membuat digit selebar sama pada font PROPORSIONAL
+     mana pun, termasuk Arial, jadi tidak perlu font terpisah untuk angka. */
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-mono: Arial, Helvetica, sans-serif;
 
   /* Skala padat: 11 / 12 / 13 / 14 / 18. **Tidak ada 16px**, dan itu disengaja.
      Halaman ini menampilkan tabel perbandingan supplier dan skenario berpuluh
@@ -171,6 +179,8 @@
   --color-fg: #e9ebf5; /* 15,0:1 */
   --color-fg-muted: #a3a8bd; /*  7,6:1 */
   --color-fg-subtle: #8b90a6; /*  5,6:1 */
+
+  --color-ink: #161a2b; /* TETAP — topbar selalu gelap di kedua tema */
 
   --color-brand: #7b98ff;
   --color-primary: #3d5af1; /* TETAP — putih di atasnya 5,3:1 */

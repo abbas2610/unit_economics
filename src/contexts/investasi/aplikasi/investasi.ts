@@ -4,7 +4,7 @@
  * Dua kategori, dan pemisahannya adalah pertanyaan yang paling sering ditanya
  * ke halaman ini: berapa yang jadi BARANG, dan berapa yang jadi PERHATIAN.
  *
- *     Category 1 — Produk     bahan baku + botol & packaging + fulfillment
+ *     Category 1 — Produk     bahan baku + botol & packaging + fulfillment + biaya custom
  *     Category 2 — Marketing  offline + online + lainnya
  *
  * ## Pajak tidak jadi baris sendiri
@@ -60,6 +60,9 @@ export type RincianInvestasi = {
   botolPacking: number;
 
   fulfillmentTotal: number;
+
+  /** Jumlah `dok.investasiCustom` — biaya bebas nama & angka, Category 1. */
+  customTotal: number;
 
   /** Category 1 */
   produk: number;
@@ -123,8 +126,9 @@ export function initialInvestment(dok: Dokumen): RincianInvestasi {
   const boxTotal = totalBotol * boxPerBotol(dok.asumsi);
   const botolPacking = invKecil.total + invBesar.total + boxTotal;
   const fulfillmentTotal = totalBotol * fulfillment;
+  const customTotal = dok.investasiCustom.reduce((a, c) => a + (c.nilai || 0), 0);
 
-  const produk = bahanBaku + botolPacking + fulfillmentTotal;
+  const produk = bahanBaku + botolPacking + fulfillmentTotal + customTotal;
   const marketing = dok.marketing.offline + dok.marketing.online + dok.marketing.lainnya;
 
   /* Botol yang dibayar tapi tidak terisi. Dinilai `satuan.totalLengkap` —
@@ -162,6 +166,7 @@ export function initialInvestment(dok: Dokumen): RincianInvestasi {
     boxTotal,
     botolPacking,
     fulfillmentTotal,
+    customTotal,
     produk,
     marketing,
     total: produk + marketing,
