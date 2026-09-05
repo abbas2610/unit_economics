@@ -44,8 +44,21 @@ dokumen.
   dilayani proses Next milik repo portfolio, yang menyajikan berkas `public/`
   hanya pada path PERSISNYA. Terukur: `/perfume-app/index.html` → 200,
   `/perfume-app/` → 404 dengan header `X-Powered-By: Next.js`. `.htaccess` tidak
-  akan menambalnya. Tautan langsung ke satu tab wajib menyebut `/index.html`;
-  berpindah tab dari dalam aplikasi tetap mulus karena itu navigasi sisi klien.
+  akan menambalnya. Tautan langsung ke satu tab wajib menyebut `/index.html`.
+
+- **"Berpindah tab dari dalam aplikasi tetap mulus karena navigasi sisi klien"
+  itu SALAH, dan sempat tertulis di sini sebagai fakta.** Tab bar dulu memakai
+  `<Link>` Next dengan `trailingSlash: true`, dan transisi sisi kliennya
+  menyentuh persis URL tanpa nama berkas yang 404 di atas — klik menu
+  Supplier/Unit Economics di abbas.co.id betul-betul 404, bukan cuma prefetch
+  di background yang gagal diam-diam. Tidak ada probe yang mengklik tab
+  sungguhan (semua goto langsung ke `index.html`), jadi ini lolos berbulan-
+  bulan. Tab bar sekarang anchor `<a>` biasa yang menuju `.../index.html`
+  langsung di produksi (deteksi lewat `process.env.NODE_ENV`, tetap URL rute
+  polos di `next dev`) — lihat `tautanTab()` di `app-shell.tsx`. Reload penuh
+  antar tab aman karena tiap halaman membaca ulang dari `Dokumen` yang sudah
+  tersimpan, bukan dari state React yang cuma hidup di memori. Dijaga bagian 8
+  `probe-builder.mjs`, yang mengklik tab-nya, bukan `goto` ke tujuannya.
 
 - **Server uji WAJIB sama pelitnya dengan produksi.** `serve-build.mjs` sempat
   saya buat me-resolve `/foo/` jadi `/foo/index.html` atas asumsi hosting Apache.

@@ -15,9 +15,9 @@
  * Sekarang tiap tab punya URL. Dokumennya tetap satu karena `<DokumenProvider>`
  * duduk di layout, di atas rutenya.
  */
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRef, type ReactNode } from "react";
+import { BASE_PATH } from "@/bersama/base-path";
 import { cx } from "@/bersama/cx";
 import { dokumenAwal } from "@/contexts/dokumen/domain/dokumen";
 import { bacaDokumen } from "@/contexts/dokumen/domain/migrasi";
@@ -32,6 +32,29 @@ export const TAB = [
   { href: "/unit-economics", nomor: 5, label: "Unit Economics" },
   { href: "/sensitivitas", nomor: 6, label: "Sensitivity Analysis" },
 ] as const;
+
+/**
+ * URL tab yang BENAR-BENAR bisa dituju — dan itu beda antara `next dev` dan
+ * bundle statis yang dikirim ke abbas.co.id.
+ *
+ * `next dev` menyajikan tiap rute App Router langsung; path apa adanya sudah
+ * cukup. Bundle statis sebaliknya HANYA dilayani proses Next milik repo
+ * portfolio, yang menyajikan berkas `public/` cuma pada path PERSISNYA
+ * (lihat AGENTS.md — "Tidak ada directory index di produksi"): `.../index.html`
+ * → 200, `.../` tanpa nama berkas → 404.
+ *
+ * Klik `<Link>` Next router sempat dipakai di sini dengan asumsi transisi
+ * sisi klien-nya tidak pernah menyentuh URL itu langsung — asumsi itu salah:
+ * navigasi antar tab di produksi 404 persis pada URL yang sama yang 404 kalau
+ * diketik manual. Anchor biasa yang menuju berkas persisnya menghindari
+ * seluruh mekanisme itu; reload penuh aman di sini karena setiap tab membaca
+ * ulang dari `Dokumen` yang sudah tersimpan (localStorage/Supabase), bukan
+ * dari state React yang cuma hidup di memori.
+ */
+const tautanTab = (route: (typeof TAB)[number]["href"]): string => {
+  if (process.env.NODE_ENV !== "production") return route;
+  return `${BASE_PATH}${route === "/" ? "" : route}/index.html`;
+};
 
 const STATUS: Record<StatusAwan, { teks: string; kelas: string }> = {
   memuat: { teks: "Memuat data tim…", kelas: "text-fg-subtle" },
@@ -184,27 +207,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               const aktif = kini === t.href;
               return (
                 <li key={t.href}>
-                  <Link
-                    href={t.href}
-                    /*
-                     * ⚠️ Prefetch DIMATIKAN, dan alasannya spesifik untuk export
-                     * statis.
-                     *
-                     * Next 16 memuat-di-muka lewat segment cache: ia meminta
-                     * `__next.<sandi>.<segmen>.__PAGE__.txt` — nama berkas
-                     * BERTITIK. `next build` menuliskannya sebagai FOLDER
-                     * bertingkat (`__next.<sandi>/<segmen>/__PAGE__.txt`).
-                     * Server aplikasi memetakan keduanya; hosting statis tidak
-                     * bisa, jadi tiap prefetch mendarat di 404.
-                     *
-                     * Akibatnya tidak merusak apa pun — navigasi jatuh ke
-                     * permintaan biasa dan tetap jalan — tapi ia mengisi tab
-                     * Network dengan 404 merah pada aplikasi yang sehat, dan
-                     * itu akan menghabiskan sore seseorang suatu hari nanti.
-                     * Enam halaman ini kecil dan sudah statis; yang dibeli
-                     * prefetch di sini nyaris nol.
-                     */
-                    prefetch={false}
+                  <a
+                    href={tautanTab(t.href)}
                     aria-current={aktif ? "page" : undefined}
                     className={cx(
                       "flex h-control items-center gap-2 whitespace-nowrap rounded-md px-3 text-meta font-semibold transition-colors",
@@ -220,7 +224,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       {t.nomor}
                     </span>
                     {t.label}
-                  </Link>
+                  </a>
                 </li>
               );
             })}

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { BASE_PATH } from "./src/bersama/base-path";
 
 const nextConfig: NextConfig = {
   /*
@@ -25,7 +26,7 @@ const nextConfig: NextConfig = {
    * Ditulis di sini sejak hari pertama supaya setiap href dan aset sudah membawa
    * prefiksnya — memindahkannya belakangan berarti menyisir tiap tautan.
    */
-  basePath: "/perfume-app",
+  basePath: BASE_PATH,
 
   /* Export statis tidak punya server yang bisa mengoptimalkan gambar saat
      diminta. Tanpa baris ini `next build` menolak jalan. */

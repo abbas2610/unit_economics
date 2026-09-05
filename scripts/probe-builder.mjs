@@ -80,10 +80,13 @@ const hal = await konteks.newPage();
  * layar cuma halaman tanpa gaya — bukan error.
  *
  * ⚠️ `net::ERR_ABORTED` DIKECUALIKAN, dan itu bukan pelonggaran yang malas:
- * `<Link>` Next melakukan prefetch halaman tetangga, dan prefetch yang belum
- * selesai saat kita berpindah halaman memang dibatalkan browser. Menghitungnya
- * sebagai kegagalan membuat probe ini merah pada perilaku yang benar — dan probe
- * yang merah pada perilaku yang benar akan dimatikan orang, bukan diperbaiki.
+ * tab bar dulu memakai `<Link>` Next yang melakukan prefetch halaman tetangga,
+ * dan prefetch yang belum selesai saat kita berpindah halaman memang
+ * dibatalkan browser. Tab bar sekarang anchor biasa (lihat app-shell.tsx —
+ * transisi sisi klien Next 404 di produksi), tapi pengecualian ini tetap
+ * dipertahankan: bagian 5 mengetik cepat di beberapa kotak sekaligus, dan
+ * permintaan yang saling menyusul bisa saling membatalkan dengan alasan yang
+ * sama-sama tidak berarti kegagalan.
  *
  * 404 sungguhan tetap dihitung: itu yang akan terjadi kalau `basePath` hilang.
  */
@@ -159,6 +162,11 @@ kontrol(
     .then((r) => (r?.status() ?? 0) === 200)
     .catch(() => false),
 );
+
+/* Snapshot SETELAH kontrol negatif di atas — 404 ke "tab-yang-tidak-ada" itu
+   sengaja dan sudah masuk `gagalMuat` lewat listener `response`. Bagian 8 di
+   bawah cuma boleh menuntut nol kegagalan BARU sejak titik ini. */
+const gagalMuatSebelumKlik = gagalMuat.length;
 
 /* ═════════════════════════════════════════════════ 2. tab aktif ditandai ══ */
 console.log("\n=== 2. Tab aktif ditandai, dan bisa ditautkan ===");
@@ -384,6 +392,61 @@ console.log("\n=== 7. Tema gelap benar-benar menukar seluruh palet ===");
   });
   cek("setiap kartu ikut berganti warna", tidakIkut === 0, `${tidakIkut} kartu tidak ikut`);
 }
+
+/* ═══════════════ 8. klik tab sungguhan dari dalam aplikasi, bukan goto ══ */
+console.log("\n=== 8. Klik tab dari dalam aplikasi tidak 404 ===");
+
+{
+  /* Seluruh navigasi di bagian 1–7 di atas pindah halaman lewat
+     `page.goto(...index.html)` langsung — jalur yang TIDAK PERNAH menyentuh
+     tautan tab sungguhan. Tab-nya sempat memakai `<Link>` Next dengan asumsi
+     transisi sisi kliennya tidak pernah menyentuh URL itu langsung; asumsi itu
+     salah, dan tidak ada probe yang mengklik menunya untuk membuktikannya —
+     sampai seseorang benar-benar mengklik menu itu di abbas.co.id dan
+     mendapat 404. Bagian ini mengklik tab persis seperti pengguna. */
+  const NAV_LABEL = [
+    "Supplier Botol Kecil",
+    "Supplier Botol Besar",
+    "Initial Investment",
+    "Unit Economics",
+    "Sensitivity Analysis",
+  ];
+
+  await hal.goto(BASE + "/index.html", { waitUntil: "networkidle" });
+
+  for (let i = 0; i < NAV_LABEL.length; i++) {
+    const tautan = hal.locator("nav a", { hasText: NAV_LABEL[i] });
+    await Promise.all([
+      hal.waitForLoadState("networkidle"),
+      tautan.click(),
+    ]);
+    const h1 = (await hal.locator("h1").first().textContent()) ?? "";
+    cek(
+      `klik "${NAV_LABEL[i]}" mendarat di halamannya, bukan 404`,
+      h1.includes(TAB[i + 1].judul),
+      `h1 = ${JSON.stringify(h1)}`,
+    );
+  }
+}
+
+/* Navigasi klik di atas ikut lewat listener `response` yang sama dengan
+   bagian 1; kalau salah satu klik mendarat di 404 sungguhan, barisnya masuk
+   ke sini walau perbandingan judul di bagian 8 kebetulan lolos karena
+   mencocokkan longgar. */
+const gagalMuatBaru = gagalMuat.slice(gagalMuatSebelumKlik);
+cek(
+  "tidak ada respons 4xx/5xx baru akibat klik tab",
+  gagalMuatBaru.length === 0,
+  gagalMuatBaru.slice(0, 3).join(", "),
+);
+
+kontrol(
+  "[kontrol negatif] URL tab tanpa index.html memang 404 di server statis ini",
+  await hal
+    .goto(BASE + "/unit-economics/", { waitUntil: "domcontentloaded" })
+    .then((r) => (r?.status() ?? 0) < 400)
+    .catch(() => false),
+);
 
 /* ══════════════════════════════════════════════════════════════ selesai ══ */
 await peramban.close();
