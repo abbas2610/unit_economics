@@ -35,11 +35,19 @@ export const TAB = [
  * URL tab yang BENAR-BENAR bisa dituju - dan itu beda antara `next dev` dan
  * bundle statis yang dikirim ke abbas.co.id.
  *
- * `next dev` menyajikan tiap rute App Router langsung; path apa adanya sudah
- * cukup. Bundle statis sebaliknya HANYA dilayani proses Next milik repo
- * portfolio, yang menyajikan berkas `public/` cuma pada path PERSISNYA
- * (lihat AGENTS.md - "Tidak ada directory index di produksi"): `.../index.html`
- * → 200, `.../` tanpa nama berkas → 404.
+ * ⚠️ `basePath` di `next.config.ts` berlaku di KEDUA mode - `next dev` cuma
+ * menyajikan rute di bawah `/perfume-app`, bukan di root. Anchor biasa (bukan
+ * `<Link>`) tidak dapat prefiks otomatis dari router Next, jadi path polos
+ * tanpa `BASE_PATH` 404 persis sama di `next dev` seperti di produksi - itu
+ * pernah tertulis salah di sini ("path apa adanya sudah cukup"), dan baru
+ * ketahuan begitu tab diklik sungguhan, bukan dari `goto` langsung ke rute
+ * yang selalu menyertakan base path.
+ *
+ * Yang beda cuma NAMA BERKASnya: `next dev` melayani direktori bersih
+ * (`/perfume-app/supplier-kecil/`), export statis di produksi HANYA melayani
+ * berkas persisnya (`/perfume-app/supplier-kecil/index.html`) - lihat
+ * AGENTS.md, "Tidak ada directory index di produksi": `.../index.html` → 200,
+ * `.../` tanpa nama berkas → 404.
  *
  * Klik `<Link>` Next router sempat dipakai di sini dengan asumsi transisi
  * sisi klien-nya tidak pernah menyentuh URL itu langsung - asumsi itu salah:
@@ -54,8 +62,9 @@ export const TAB = [
  * biasa, jadi diterima `string` polos, bukan dibatasi union href TAB).
  */
 const tautanTab = (route: string): string => {
-  if (process.env.NODE_ENV !== "production") return route;
-  return `${BASE_PATH}${route === "/" ? "" : route}/index.html`;
+  const path = `${BASE_PATH}${route === "/" ? "" : route}`;
+  if (process.env.NODE_ENV !== "production") return `${path}/`;
+  return `${path}/index.html`;
 };
 
 const STATUS: Record<StatusAwan, { teks: string; kelas: string }> = {
