@@ -159,7 +159,10 @@ console.log("\n=== 2. 'Beli 100 botol saja' bisa dimodelkan ===");
   await isi("Qty botol yang dipesan", 100);
   await hal.waitForTimeout(150);
 
-  const kartu = hal.locator("section.card").first();
+  /* Scoped ke `[data-seksi="supplier"]` — halaman ini sekarang juga punya
+     kartu vendor packaging berkelas `.card` yang sama, ditambahkan bersama
+     fitur "packaging punya fixed/variable cost sendiri" (lihat riwayat git). */
+  const kartu = hal.locator('[data-seksi="supplier"] section.card').first();
   const teksKartu = await kartu.innerText();
   cek("kartu menyebut 100 pcs, bukan 8.500", /\b100 pcs\b/.test(teksKartu) && !/8\.500/.test(teksKartu), teksKartu.match(/[\d.]+ pcs/)?.[0] ?? "");
 
@@ -176,8 +179,14 @@ console.log("\n=== 2. 'Beli 100 botol saja' bisa dimodelkan ===");
 }
 kontrol(
   "[kontrol negatif] qty 100 TIDAK boleh tetap menghasilkan total 8.500 botol",
-  angkaDari(await hal.locator("section.card").first().locator("p.text-card-title").first().innerText()) >
-    100_000_000,
+  angkaDari(
+    await hal
+      .locator('[data-seksi="supplier"] section.card')
+      .first()
+      .locator("p.text-card-title")
+      .first()
+      .innerText(),
+  ) > 100_000_000,
 );
 
 /* ═══════════════════════ 3. tombol 'Pakai supplier ini' benar-benar bekerja ══ */
@@ -189,7 +198,7 @@ console.log("\n=== 3. Supplier baru bisa dipakai dari tab-nya sendiri ===");
   await hal.getByRole("button", { name: /Tambah supplier botol besar/i }).click();
   await hal.waitForTimeout(150);
 
-  const kartuBaru = hal.locator("section.card").last();
+  const kartuBaru = hal.locator('[data-seksi="supplier"] section.card').last();
   const tombol = kartuBaru.getByRole("button", { name: "Pakai supplier ini" });
   cek("supplier baru punya tombol 'Pakai supplier ini'", (await tombol.count()) === 1);
   cek(
@@ -201,7 +210,11 @@ console.log("\n=== 3. Supplier baru bisa dipakai dari tab-nya sendiri ===");
   await hal.waitForTimeout(150);
   cek(
     "setelah ditekan, supplier baru bertanda 'dipakai'",
-    (await hal.locator("section.card").last().locator("text=dipakai").count()) > 0,
+    (await hal
+      .locator('[data-seksi="supplier"] section.card')
+      .last()
+      .locator("text=dipakai")
+      .count()) > 0,
   );
 
   /* Dan pilihannya benar-benar sampai ke tab 4 — bukan cuma badge di layar ini.

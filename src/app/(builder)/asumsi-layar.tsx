@@ -181,24 +181,8 @@ export function AsumsiLayar() {
           </div>
           <p className="mt-2 text-meta text-fg-subtle">Isi bebas - mL berapa pun bisa dipakai.</p>
 
-          <Sublabel>Kemasan &amp; Fulfillment</Sublabel>
+          <Sublabel>Fulfillment</Sublabel>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Bidang label="Box packaging">
-              <IsianAngka
-                nilai={asumsi.boxPackaging}
-                onUbah={(n) => setAsumsi("boxPackaging", n)}
-                awalan="Rp"
-                ariaLabel="Box packaging"
-              />
-            </Bidang>
-            <Bidang label="Aksesoris box" petunjuk="(gift card, dll)">
-              <IsianAngka
-                nilai={asumsi.boxAksesoris}
-                onUbah={(n) => setAsumsi("boxAksesoris", n)}
-                awalan="Rp"
-                ariaLabel="Aksesoris box"
-              />
-            </Bidang>
             <Bidang label="Fulfillment cost per botol">
               <IsianAngka
                 nilai={asumsi.fulfillment}
@@ -208,6 +192,10 @@ export function AsumsiLayar() {
               />
             </Bidang>
           </div>
+          <p className="mt-2 text-meta text-fg-subtle">
+            Biaya box packaging diisi per vendor di tab Supplier Botol Kecil/Besar - lihat bagian
+            Packaging.
+          </p>
         </Kartu>
       </Petak>
 

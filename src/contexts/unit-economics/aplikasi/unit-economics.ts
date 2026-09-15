@@ -11,16 +11,26 @@
  *                     OEM (biang jadi + pencampuran)
  *     Botol & packing botol (harga + perizinan)
  *                     aksesoris + cap
- *                     box packaging
- *                     freight forwarder
+ *                     box packaging (vendor sendiri — lihat di bawah)
+ *                     freight forwarder botol
  *     Fulfillment     fulfillment
  *                     [amortisasi molding — kalau dinyalakan]
  *
  * Tiga kelompok itu bukan hiasan: yang pertama bergerak dengan harga bahan,
  * yang kedua dengan pilihan supplier, yang ketiga tinggal fulfillment (dan
  * amortisasi molding kalau dinyalakan).
+ *
+ * ## Box packaging adalah vendor sendiri, sama seperti supplier botol
+ *
+ * `box` dihitung dari `packagingKecil`/`packagingBesar` yang dipilih — bentuk
+ * datanya persis `Supplier` (molding + satuan + MOQ + freight), dipanggil lewat
+ * fungsi yang sama (`biayaSatuan`, `totalMolding`) dengan `perizinanPct` DIKUNCI
+ * `0`: perizinan adalah % dari harga IMPOR botol, dan box tidak dikenakannya.
+ * Freight vendor packaging (kalau dinyalakan) ikut menempel di `box`, BUKAN di
+ * `freight` — field itu tetap murni freight botol, supaya artinya tidak
+ * berubah untuk pembaca yang sudah terbiasa dengannya.
  */
-import { boxPerBotol, mlBotol, oemPerBotol } from "@/contexts/asumsi/domain/asumsi";
+import { mlBotol, oemPerBotol } from "@/contexts/asumsi/domain/asumsi";
 import type { UkuranBotol } from "@/contexts/asumsi/domain/asumsi";
 import { hitungCampuran } from "@/contexts/fragrance/domain/campuran";
 import type { HasilCampuran } from "@/contexts/fragrance/domain/campuran";
@@ -93,12 +103,20 @@ export const supplierTerpilih = (dok: Dokumen, ukuran: UkuranBotol): Supplier | 
     ? cariSupplier(dok.supplierKecil, dok.pilihan.kecilId)
     : cariSupplier(dok.supplierBesar, dok.pilihan.besarId);
 
+/** Vendor packaging (box) yang dipilih untuk ukuran ini. */
+export const packagingTerpilih = (dok: Dokumen, ukuran: UkuranBotol): Supplier | undefined =>
+  ukuran === "kecil"
+    ? cariSupplier(dok.packagingKecil, dok.pilihan.packagingKecilId)
+    : cariSupplier(dok.packagingBesar, dok.pilihan.packagingBesarId);
+
 export const hargaJual = (dok: Dokumen, ukuran: UkuranBotol): number =>
   ukuran === "kecil" ? dok.harga.kecil : dok.harga.besar;
 
 export type RincianUnit = {
   ukuran: UkuranBotol;
   supplier: Supplier | undefined;
+  /** Vendor packaging (box) yang dipilih untuk ukuran ini. */
+  packaging: Supplier | undefined;
   harga: number;
   /** Botol yang JADI. Ini pembagi tiap angka per-botol di bawah. */
   qtyProduksi: number;
@@ -108,6 +126,8 @@ export type RincianUnit = {
   kapasitasCairan: number;
   /** Botol dibayar tapi tidak terisi (`qtyBeli − qtyProduksi`). */
   kelebihanBotol: number;
+  /** Box dibayar tapi tidak terpakai — MOQ vendor packaging melebihi produksi. */
+  kelebihanPackaging: number;
   /** Cairan yang tidak kebagian botol, mL. Lawan dari `kelebihanBotol`. */
   mlTakTerbotolkan: number;
 
@@ -119,24 +139,34 @@ export type RincianUnit = {
   /** Harga botol + perizinan. Digabung karena perizinan adalah % dari botol. */
   botol: number;
   aksesoris: number;
+  /** Biaya packaging (vendor box terpilih) per botol — termasuk freight-nya sendiri. */
   box: number;
   freight: number;
   /** botol + aksesoris + box + freight */
   botolPacking: number;
 
   fulfillment: number;
-  /** Molding ÷ qty produksi. `0` kalau opsi amortisasi mati. */
+  /**
+   * (Molding botol + molding packaging) ÷ qty produksi. `0` kalau opsi
+   * amortisasi mati.
+   */
   amortisasiMolding: number;
   /**
-   * Botol kelebihan MOQ ÷ qty produksi. `0` kalau opsi amortisasi mati.
+   * (Botol kelebihan MOQ + box kelebihan MOQ) ÷ qty produksi. `0` kalau opsi
+   * amortisasi mati.
    *
    * Ada karena toggle "amortisasi molding" dulu cuma membagi molding, sementara
    * botol yang dibeli melebihi kebutuhan adalah uang yang sama nyatanya dan
    * jumlahnya bisa lebih besar. Pada kasus yang melahirkan field ini: molding
    * Rp45,2 juta, kelebihan MOQ Rp33,4 juta — dan yang kedua tidak terlihat di
-   * mana pun walau toggle-nya menyala.
+   * mana pun walau toggle-nya menyala. Vendor packaging punya MOQ sendiri dan
+   * ikut memberi kelebihan yang sama, terserap di sini juga.
    */
   amortisasiKelebihan: number;
+  /** Bagian `amortisasiKelebihan` yang berasal dari kelebihan MOQ BOTOL saja. */
+  amortisasiKelebihanBotol: number;
+  /** Bagian `amortisasiKelebihan` yang berasal dari kelebihan MOQ PACKAGING saja. */
+  amortisasiKelebihanPackaging: number;
   /** amortisasiMolding + amortisasiKelebihan. Yang benar-benar masuk COGS. */
   amortisasi: number;
 
@@ -148,6 +178,7 @@ export type RincianUnit = {
 
 export function unitEconomics(dok: Dokumen, ukuran: UkuranBotol): RincianUnit {
   const sup = supplierTerpilih(dok, ukuran);
+  const pkg = packagingTerpilih(dok, ukuran);
   const harga = hargaJual(dok, ukuran);
   const kapasitas = kapasitasCairan(dok, ukuran);
   const beli = qtyBeli(dok, ukuran, sup);
@@ -157,6 +188,17 @@ export function unitEconomics(dok: Dokumen, ukuran: UkuranBotol): RincianUnit {
   const satuan = sup
     ? biayaSatuan(sup, dok.asumsi.kurs, dok.asumsi.perizinanPct)
     : { botol: 0, perizinan: 0, aksesoris: 0, total: 0, freight: 0, totalLengkap: 0 };
+  /* Packaging TIDAK dikenakan perizinan — itu % dari harga impor botol. */
+  const pkgSatuan = pkg
+    ? biayaSatuan(pkg, dok.asumsi.kurs, 0)
+    : { botol: 0, perizinan: 0, aksesoris: 0, total: 0, freight: 0, totalLengkap: 0 };
+  /* Qty packaging yang "dibeli" dituntun oleh botol yang JADI (`produksi`),
+     bukan `qtyDiminta` botol — box dibutuhkan begitu botol benar-benar terisi,
+     bukan sebanyak yang dipesan ke supplier botol. MOQ packaging sendiri bisa
+     memaksa beli lebih banyak box daripada botol yang jadi — kelebihan itu
+     diserap sama seperti kelebihan MOQ botol, lihat `amortisasiKelebihan`. */
+  const pkgBeli = Math.max(pkg?.moq || 0, produksi);
+  const pkgLebih = Math.max(0, pkgBeli - produksi);
 
   const fragrance = biayaFragrancePerBotol(
     dok.varian,
@@ -165,7 +207,7 @@ export function unitEconomics(dok: Dokumen, ukuran: UkuranBotol): RincianUnit {
     dok.campuran.fragrancePct,
   );
   const oem = oemPerBotol(dok.asumsi, ukuran);
-  const box = boxPerBotol(dok.asumsi);
+  const box = pkgSatuan.totalLengkap;
   const freight = sup ? freightPerBotol(sup) : 0;
 
   /* Serapan biaya sekali-bayar ke unit cost, hanya kalau dinyalakan DAN ada
@@ -173,12 +215,21 @@ export function unitEconomics(dok: Dokumen, ukuran: UkuranBotol): RincianUnit {
      diisi) akan menghasilkan Infinity yang menjalar jadi COGS `Infinity` dan
      margin `-Infinity`.
 
-     DUA komponen, bukan satu. Molding jelas; yang mudah terlupa adalah botol
-     kelebihan MOQ — ia dinilai `totalLengkap` (freight ikut, karena botol itu
-     benar-benar dikapalkan) dan pada kasus nyata jumlahnya sebanding molding. */
+     EMPAT komponen, bukan satu: molding botol, kelebihan MOQ botol, molding
+     packaging, kelebihan MOQ packaging. Molding botol jelas; yang mudah
+     terlupa adalah botol/box kelebihan MOQ — keduanya dinilai `totalLengkap`
+     (freight ikut, karena barangnya benar-benar dikapalkan) dan pada kasus
+     nyata jumlahnya sebanding molding. */
   const menyerap = dok.opsi.amortisasiMolding && sup && produksi > 0;
-  const amortisasiMolding = menyerap ? totalMolding(sup, dok.asumsi.kurs) / produksi : 0;
-  const amortisasiKelebihan = menyerap ? (lebih * satuan.totalLengkap) / produksi : 0;
+  const pkgMenyerap = dok.opsi.amortisasiMolding && pkg && produksi > 0;
+  const amortisasiMolding =
+    (menyerap ? totalMolding(sup, dok.asumsi.kurs) / produksi : 0) +
+    (pkgMenyerap ? totalMolding(pkg, dok.asumsi.kurs) / produksi : 0);
+  const amortisasiKelebihanBotol = menyerap ? (lebih * satuan.totalLengkap) / produksi : 0;
+  const amortisasiKelebihanPackaging = pkgMenyerap
+    ? (pkgLebih * pkgSatuan.totalLengkap) / produksi
+    : 0;
+  const amortisasiKelebihan = amortisasiKelebihanBotol + amortisasiKelebihanPackaging;
   const amortisasi = amortisasiMolding + amortisasiKelebihan;
 
   const bahanBaku = fragrance + oem;
@@ -190,11 +241,15 @@ export function unitEconomics(dok: Dokumen, ukuran: UkuranBotol): RincianUnit {
   return {
     ukuran,
     supplier: sup,
+    packaging: pkg,
     harga,
     qtyProduksi: produksi,
     qtyBeli: beli,
     kapasitasCairan: kapasitas,
     kelebihanBotol: lebih,
+    kelebihanPackaging: pkgLebih,
+    amortisasiKelebihanBotol,
+    amortisasiKelebihanPackaging,
     mlTakTerbotolkan: Math.max(0, kapasitas - produksi) * mlBotol(dok.asumsi, ukuran),
     fragrance,
     oem,

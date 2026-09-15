@@ -88,9 +88,30 @@ Dipisah per ukuran: mengisi 100 mL bukan sekadar 6,7× kerja mengisi 15 mL.
 ```
 botol       = harga botol + perizinan (% dari harga botol)
 aksesoris   = aksesoris + cap
-box         = box packaging + aksesoris box
-freight     = tarif per CBM ÷ pcs per CBM
+box         = biaya packaging per pcs, TERMASUK freight-nya sendiri
+freight     = tarif per CBM ÷ pcs per CBM (punya supplier botol)
 ```
+
+**`box` bukan dua angka global lagi — ia vendor packaging sendiri, per ukuran
+botol**, bentuknya identik dengan supplier botol: molding (fixed, sekali
+bayar), harga per pcs (variable), MOQ, dan freight forwarder sendiri. Dipakai
+lewat `biayaSatuan()`/`investasiSupplier()` yang SAMA dengan supplier botol,
+dengan **`perizinanPct` dikunci `0`** — perizinan adalah % dari harga IMPOR
+botol, dan box tidak dikenakannya.
+
+⚠️ Qty yang dipakai vendor packaging BUKAN `qtyDiminta` botol, melainkan
+`qtyProduksi` — botol yang benar-benar JADI. Box baru dibutuhkan begitu
+botolnya benar-benar terisi, bukan sebanyak yang dipesan ke supplier botol.
+MOQ vendor packaging sendiri bisa memaksa beli lebih banyak box daripada botol
+yang jadi; kelebihan itu diserap sama seperti kelebihan MOQ botol (lihat
+bagian 3), lewat `amortisasiKelebihanPackaging` yang terpisah dari
+`amortisasiKelebihanBotol`.
+
+Nilai awal vendor packaging (`Rp20.000` harga + `Rp5.000` aksesoris, molding
+`0`, MOQ `0`, freight mati) meneruskan persis angka dua field global
+(`boxPackaging` + `boxAksesoris`) yang dulu ada di Asumsi Dasar sebelum
+packaging jadi vendor sendiri — supaya migrasi dokumen lama menghasilkan
+COGS & Initial Investment yang sama persis dengan sebelumnya.
 
 `pcs per CBM` diturunkan dari dimensi:
 
@@ -144,22 +165,31 @@ Dinyalakan saat yang ditanya "berapa biaya per unit sesungguhnya **untuk batch
 ini**". Jawabannya berbeda jauh: molding Rp42,7 juta dibagi 8.500 botol adalah
 Rp5.022 per botol — hampir 8% dari COGS.
 
-**DUA komponen diserap, bukan satu:**
+**Awalnya dua komponen, sekarang empat — botol dan packaging masing-masing
+punya molding & kelebihan MOQ sendiri:**
 
 ```
-amortisasi = molding ÷ qty produksi
+amortisasi = (molding botol + molding packaging) ÷ qty produksi
            + (botol kelebihan MOQ × biaya botol per unit lengkap) ÷ qty produksi
+           + (box kelebihan MOQ × biaya packaging per unit lengkap) ÷ qty produksi
 ```
 
-> ⚠️ Yang kedua sempat hilang, dan hilangnya diam. Toggle ini dulu hanya membagi
-> molding, sementara botol yang terpaksa dibeli karena MOQ adalah uang yang sama
-> nyatanya — dan jumlahnya sebanding. Pada penawaran Gelas Bening (A): molding
-> Rp45,2 juta, kelebihan MOQ Rp33,4 juta. Toggle yang menyala melaporkan COGS
-> Rp71.821 (margin 64,09%) padahal yang benar Rp75.750 (margin 62,13%) — selisih
-> 4,6 poin margin, tanpa satu pun error. Dijaga `probe:hitung` bagian 7 dan
-> `probe:pembelian` bagian 5, keduanya dengan kontrol negatif.
+> ⚠️ Komponen kelebihan MOQ sempat hilang, dan hilangnya diam. Toggle ini dulu
+> hanya membagi molding, sementara botol yang terpaksa dibeli karena MOQ adalah
+> uang yang sama nyatanya — dan jumlahnya sebanding. Pada penawaran Gelas
+> Bening (A): molding Rp45,2 juta, kelebihan MOQ Rp33,4 juta. Toggle yang
+> menyala melaporkan COGS Rp71.821 (margin 64,09%) padahal yang benar Rp75.750
+> (margin 62,13%) — selisih 4,6 poin margin, tanpa satu pun error. Dijaga
+> `probe:hitung` bagian 7 dan `probe:pembelian` bagian 5, keduanya dengan
+> kontrol negatif.
 
-Kelebihan MOQ dinilai **termasuk freight** — botol itu benar-benar dikapalkan.
+Kelebihan MOQ dinilai **termasuk freight** — botol/box itu benar-benar
+dikapalkan. Layar memisah kontribusi botol dan packaging
+(`amortisasiKelebihanBotol` vs `amortisasiKelebihanPackaging`) supaya baris
+"Kelebihan MOQ X pcs" di Unit Economics selalu menyebut qty yang BENAR-BENAR
+menghasilkan rupiah di baris itu — dengan MOQ packaging default `0`, kontribusi
+packaging biasanya nol dan tidak terlihat sampai vendor packaging diberi MOQ
+sungguhan.
 
 Yang membuatnya rumit: molding dipakai lintas batch. Kalau cetakan yang sama
 dipakai tiga tahun, membebankan seluruhnya ke batch pertama membuat batch pertama
@@ -173,7 +203,8 @@ ia menyediakan sakelarnya dan menyebut pembaginya di layar.
 ```
 Category 1 — Produk
   bahan baku      = (fragrance + PPN) + OEM × qty + perizinan varian
-  botol & packing = investasi supplier kecil + besar + box × total botol
+  botol & packing = investasi supplier botol kecil + besar
+                  + investasi vendor packaging kecil + besar
   fulfillment     = biaya per botol × total botol
 
 Category 2 — Marketing
@@ -207,6 +238,17 @@ Investasi per supplier:
 ```
 total = molding + (botol + aksesoris + perizinan + freight) × qty dibeli
 ```
+
+> ⚠️ **Vendor packaging memakai rumus yang SAMA (fungsinya literal sama,
+> `investasiSupplier()`), tapi qty basisnya BEDA.** Supplier botol dihitung
+> pada `qty diminta` — apa yang tim MINTA ke supplier, sebelum MOQ ikut bicara.
+> Vendor packaging dihitung pada `qty produksi` — botol yang BENAR-BENAR jadi.
+> Box tidak "diminta" terpisah dari botolnya; ia dibutuhkan begitu botolnya
+> terisi, jadi qty yang salah di sini (mis. pakai `qty diminta` botol) bisa
+> menghitung box untuk 100 botol "diminta" padahal cairan + MOQ botol
+> sesungguhnya menghasilkan 8.500 botol jadi — box-nya kurang 8.400 pcs, diam,
+> tanpa error. `perizinanPct` untuk vendor packaging juga dikunci `0` — itu %
+> dari harga impor botol, bukan box.
 
 > ⚠️ **MOQ yang melebihi pesanan meninggalkan botol tanpa isi.** MOQ 10.000 untuk
 > 8.500 yang diproduksi berarti 1.500 botol dibayar sekarang dan disimpan. Modal

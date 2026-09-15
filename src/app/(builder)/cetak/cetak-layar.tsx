@@ -41,6 +41,7 @@ import {
   grossProfitBatch,
   kapasitasCairan,
   qtyDiminta,
+  qtyProduksi,
   unitEconomics,
 } from "@/contexts/unit-economics/aplikasi/unit-economics";
 import type { RincianUnit } from "@/contexts/unit-economics/aplikasi/unit-economics";
@@ -65,6 +66,8 @@ export function CetakLayar() {
   const kapasitasBesar = kapasitasCairan(dok, "besar");
   const dimintaKecil = qtyDiminta(dok, "kecil");
   const dimintaBesar = qtyDiminta(dok, "besar");
+  const produksiKecil = qtyProduksi(dok, "kecil");
+  const produksiBesar = qtyProduksi(dok, "besar");
 
   const inv = initialInvestment(dok);
   const kecil = unitEconomics(dok, "kecil");
@@ -87,9 +90,6 @@ export function CetakLayar() {
             <KV label="OEM botol besar">{rupiah(asumsi.oemBesar)}</KV>
             <KV label="Waste bahan baku">{persen(asumsi.wastePct)}</KV>
             <KV label="PPN">{persen(asumsi.ppnPct)}</KV>
-            <KV label="Box + aksesoris packaging">
-              {rupiah(asumsi.boxPackaging + asumsi.boxAksesoris)}
-            </KV>
             <KV label="Fulfillment / botol">{rupiah(asumsi.fulfillment)}</KV>
             <KV label="Ukuran botol kecil">{asumsi.mlBotolKecil} ML</KV>
             <KV label="Ukuran botol besar">{asumsi.mlBotolBesar} ML</KV>
@@ -167,6 +167,30 @@ export function CetakLayar() {
             kapasitas={kapasitasBesar}
           />
         </Panel>
+
+        {/* Packaging TIDAK dikenakan perizinan (`perizinanPct={0}`), dan qty
+            basisnya botol yang JADI (`qtyProduksi`) — box dibutuhkan sebanyak
+            botol yang benar-benar terisi, bukan sebanyak yang diminta ke
+            supplier botol. */}
+        <Panel judul="Packaging Botol Kecil">
+          <TabelBandingRingkas
+            daftar={dok.packagingKecil}
+            kurs={asumsi.kurs}
+            perizinanPct={0}
+            diminta={produksiKecil}
+            kapasitas={produksiKecil}
+          />
+        </Panel>
+
+        <Panel judul="Packaging Botol Besar">
+          <TabelBandingRingkas
+            daftar={dok.packagingBesar}
+            kurs={asumsi.kurs}
+            perizinanPct={0}
+            diminta={produksiBesar}
+            kapasitas={produksiBesar}
+          />
+        </Panel>
       </section>
 
       {/* ═══════════════════════════════ halaman 3 — initial investment ══ */}
@@ -197,7 +221,12 @@ export function CetakLayar() {
           <Baris label={`Botol besar — ${inv.supplierBesar?.nama ?? "-"}`}>
             {rupiah(inv.invBesar.total)}
           </Baris>
-          <Baris label="Box packaging">{rupiah(inv.boxTotal)}</Baris>
+          <Baris label={`Packaging kecil — ${inv.packagingKecil?.nama ?? "-"}`}>
+            {rupiah(inv.invPackagingKecil.total)}
+          </Baris>
+          <Baris label={`Packaging besar — ${inv.packagingBesar?.nama ?? "-"}`}>
+            {rupiah(inv.invPackagingBesar.total)}
+          </Baris>
           <Baris label="Total botol & packaging" tebal>
             {rupiah(inv.botolPacking)}
           </Baris>

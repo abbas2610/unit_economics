@@ -1,16 +1,25 @@
 "use client";
 
 /**
- * Tab 2 & 3 - perbandingan supplier botol.
+ * Tab 2 & 3 - perbandingan supplier botol + vendor packaging.
  *
- * Satu komponen untuk dua tab, dan itu bukan penghematan baris: keduanya
- * menjawab pertanyaan yang persis sama dengan aturan yang persis sama. Menulis
- * dua salinan berarti perbaikan di satu ukuran botol akan lupa dibawa ke yang
- * lain - dan bedanya tidak akan terlihat sampai ada yang membandingkan dua tab
- * berdampingan.
+ * Satu komponen untuk dua tab (kecil/besar), dan itu bukan penghematan baris:
+ * keduanya menjawab pertanyaan yang persis sama dengan aturan yang persis
+ * sama. Menulis dua salinan berarti perbaikan di satu ukuran botol akan lupa
+ * dibawa ke yang lain - dan bedanya tidak akan terlihat sampai ada yang
+ * membandingkan dua tab berdampingan.
  *
- * Yang berbeda cuma daftar supplier mana yang disunting dan qty batch mana yang
- * dipakai; keduanya masuk lewat prop.
+ * Yang berbeda cuma daftar supplier/packaging mana yang disunting dan qty
+ * batch mana yang dipakai; keduanya masuk lewat prop.
+ *
+ * ## Packaging memakai kartu & tabel yang SAMA dengan supplier botol
+ *
+ * `KartuSupplier` dan `TabelBanding` di bawah menerima prop `jenis` yang cuma
+ * mengganti label ("Molding botol" vs "Molding box", dst) - datanya sendiri
+ * (`Supplier`), rumusnya (`investasiSupplier`, `biayaSatuan`), dan interaksinya
+ * (tambah/hapus/pakai) identik. Menulis kartu packaging terpisah berarti dua
+ * salinan lagi yang bisa diam-diam berbeda - persis alasan kecil/besar sudah
+ * satu komponen.
  */
 import { angka, pcs, persen, rupiah, usd } from "@/bersama/format";
 import { cx } from "@/bersama/cx";
@@ -24,7 +33,11 @@ import {
 } from "@/contexts/supplier/domain/supplier";
 import type { MataUang, Supplier } from "@/contexts/supplier/domain/supplier";
 import { idBerikutnya } from "@/contexts/dokumen/domain/migrasi";
-import { kapasitasCairan, qtyDiminta } from "@/contexts/unit-economics/aplikasi/unit-economics";
+import {
+  kapasitasCairan,
+  qtyDiminta,
+  qtyProduksi,
+} from "@/contexts/unit-economics/aplikasi/unit-economics";
 import { liter } from "@/bersama/format";
 import { mlBotol } from "@/contexts/asumsi/domain/asumsi";
 import { useDokumen } from "./dokumen-provider";
@@ -44,6 +57,45 @@ import {
   TombolHapus,
 } from "./ui";
 
+type Jenis = "botol" | "packaging";
+
+const LABEL: Record<
+  Jenis,
+  {
+    /** Dipakai tombol "Pakai … ini" di kartu. */
+    namaPakai: string;
+    /** Dipakai baris "Biaya … / unit" di tabel perbandingan. */
+    namaUnit: string;
+    molding: [string, string, string];
+    satuan: [string, string, string];
+    labelKomponenMolding: [string, string, string];
+    labelKomponenSatuan: [string, string, string];
+    labelQty: string;
+    labelTerisi: string;
+  }
+> = {
+  botol: {
+    namaPakai: "supplier",
+    namaUnit: "botol",
+    molding: ["Molding botol", "Molding cap / tutup", "Molding silikon / aksesoris"],
+    satuan: ["Harga botol / pcs", "Harga cap / pcs", "Aksesoris / pcs"],
+    labelKomponenMolding: ["Botol", "Cap", "Silikon"],
+    labelKomponenSatuan: ["Botol", "Cap", "Aksesoris"],
+    labelQty: "Qty dibeli",
+    labelTerisi: "Botol terisi",
+  },
+  packaging: {
+    namaPakai: "packaging",
+    namaUnit: "packaging",
+    molding: ["Molding box", "Molding tutup box", "Molding aksesoris box"],
+    satuan: ["Harga box / pcs", "Harga tutup box / pcs", "Aksesoris box / pcs"],
+    labelKomponenMolding: ["Box", "Tutup", "Aksesoris"],
+    labelKomponenSatuan: ["Box", "Tutup", "Aksesoris"],
+    labelQty: "Qty box dibeli",
+    labelTerisi: "Box terpakai",
+  },
+};
+
 export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
   const { dok, ubah, beriKabar } = useDokumen();
   const kecil = ukuran === "kecil";
@@ -54,8 +106,12 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
      yang DIBAYAR tiap supplier = max(MOQ, diminta), dihitung per kolom. */
   const kapasitas = kapasitasCairan(dok, ukuran);
   const diminta = qtyDiminta(dok, ukuran);
+  const produksi = qtyProduksi(dok, ukuran);
   const pembelianManual = (kecil ? dok.pembelian?.kecil : dok.pembelian?.besar) ?? null;
   const dimensi = kecil ? dok.dimensi.kecil : dok.dimensi.besar;
+
+  const daftarPackaging = kecil ? dok.packagingKecil : dok.packagingBesar;
+  const terpilihPackagingId = kecil ? dok.pilihan.packagingKecilId : dok.pilihan.packagingBesarId;
 
   const setPembelian = (n: number | null) =>
     ubah((d) => ({
@@ -115,6 +171,63 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
       return kecil
         ? { ...d, supplierKecil: sisa, pilihan }
         : { ...d, supplierBesar: sisa, pilihan };
+    });
+  };
+
+  /* — packaging: sama persis polanya dengan supplier botol di atas, cuma
+       menyunting `packagingKecil`/`packagingBesar` & `pilihan.packaging*Id`. */
+  const pakaiPackaging = (id: string) =>
+    ubah((d) => ({
+      ...d,
+      pilihan: kecil
+        ? { ...d.pilihan, packagingKecilId: id }
+        : { ...d.pilihan, packagingBesarId: id },
+    }));
+
+  const setDaftarPackaging = (fn: (d: Supplier[]) => Supplier[]) =>
+    ubah((d) =>
+      kecil
+        ? { ...d, packagingKecil: fn(d.packagingKecil) }
+        : { ...d, packagingBesar: fn(d.packagingBesar) },
+    );
+
+  const setPackaging = (id: string, fn: (s: Supplier) => Supplier) =>
+    setDaftarPackaging((list) => list.map((s) => (s.id === id ? fn(s) : s)));
+
+  const tambahPackaging = () =>
+    ubah((d) => {
+      const id = (kecil ? "pk" : "pb") + idBerikutnya(d);
+      const baru: Supplier = {
+        id,
+        nama: "Packaging Baru",
+        mataUang: "IDR",
+        moq: 0,
+        molding: { botol: 0, cap: 0, silikon: 0 },
+        satuan: { botol: 0, cap: 0, aksesoris: 0 },
+        freight: {
+          aktif: false,
+          pcsPerCBM: Math.round(pcsPerCBM(dimensi, d.asumsi.packingEfficiency)) || 1,
+          ratePerCBM: d.asumsi.freightPerCBM,
+        },
+      };
+      return kecil
+        ? { ...d, packagingKecil: [...d.packagingKecil, baru] }
+        : { ...d, packagingBesar: [...d.packagingBesar, baru] };
+    });
+
+  const hapusPackaging = (id: string) => {
+    if (daftarPackaging.length <= 1) {
+      beriKabar("Minimal satu vendor packaging");
+      return;
+    }
+    ubah((d) => {
+      const sisa = (kecil ? d.packagingKecil : d.packagingBesar).filter((s) => s.id !== id);
+      const pilihan = { ...d.pilihan };
+      if (kecil && pilihan.packagingKecilId === id) pilihan.packagingKecilId = sisa[0]?.id ?? "";
+      if (!kecil && pilihan.packagingBesarId === id) pilihan.packagingBesarId = sisa[0]?.id ?? "";
+      return kecil
+        ? { ...d, packagingKecil: sisa, pilihan }
+        : { ...d, packagingBesar: sisa, pilihan };
     });
   };
 
@@ -186,10 +299,11 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
         </Kartu>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3" data-seksi="supplier">
         {daftar.map((sup) => (
           <KartuSupplier
             key={sup.id}
+            jenis="botol"
             sup={sup}
             terpilih={sup.id === terpilihId}
             diminta={diminta}
@@ -229,6 +343,7 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
             sub={`Kolom bertanda adalah supplier yang sedang dipakai Initial Investment. Semua kolom dihitung untuk ${pcs(diminta)} yang dipesan; supplier ber-MOQ lebih tinggi memaksa membeli lebih banyak, dan itu ditandai.`}
           />
           <TabelBanding
+            jenis="botol"
             daftar={daftar}
             terpilihId={terpilihId}
             diminta={diminta}
@@ -238,6 +353,69 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
           />
         </Kartu>
       </div>
+
+      {/* ═══════════════════════════════════════════════════ packaging ══ */}
+      <div className="mt-8">
+        <JudulBlok
+          judul={`Packaging - ${label}`}
+          sub="Box + aksesoris box. Vendor sendiri, bentuknya sama dengan supplier botol - molding (fixed, sekali bayar) dan harga per pcs (variable) terpisah. Qty-nya mengikuti botol yang JADI, bukan yang dipesan ke supplier botol: box baru dibutuhkan begitu botolnya benar-benar terisi."
+        />
+
+        <div className="mt-3 flex flex-col gap-3" data-seksi="packaging">
+          {daftarPackaging.map((sup) => (
+            <KartuSupplier
+              key={sup.id}
+              jenis="packaging"
+              sup={sup}
+              terpilih={sup.id === terpilihPackagingId}
+              diminta={produksi}
+              kurs={dok.asumsi.kurs}
+              perizinanPct={0}
+              onPakai={() => {
+                pakaiPackaging(sup.id);
+                beriKabar(`${sup.nama} dipakai Initial Investment & Unit Economics`);
+              }}
+              onUbah={(fn) => setPackaging(sup.id, fn)}
+              onHapus={() => hapusPackaging(sup.id)}
+              onResetFreight={() => {
+                setPackaging(sup.id, (s) => ({
+                  ...s,
+                  freight: {
+                    ...s.freight,
+                    pcsPerCBM: Math.round(pcsPerCBM(dimensi, dok.asumsi.packingEfficiency)) || 1,
+                    ratePerCBM: dok.asumsi.freightPerCBM,
+                  },
+                }));
+                beriKabar("Freight direset ke default asumsi dasar");
+              }}
+            />
+          ))}
+        </div>
+
+        <div className="mt-3">
+          <Tombol jenis="garis" onClick={tambahPackaging}>
+            + Tambah packaging {kecil ? "botol kecil" : "botol besar"}
+          </Tombol>
+        </div>
+
+        <div className="mt-6">
+          <Kartu>
+            <JudulBlok
+              judul={`Perbandingan Packaging - ${label}`}
+              sub={`Kolom bertanda adalah vendor yang sedang dipakai Initial Investment & Unit Economics. Semua kolom dihitung untuk ${pcs(produksi)} botol yang jadi.`}
+            />
+            <TabelBanding
+              jenis="packaging"
+              daftar={daftarPackaging}
+              terpilihId={terpilihPackagingId}
+              diminta={produksi}
+              kapasitas={produksi}
+              kurs={dok.asumsi.kurs}
+              perizinanPct={0}
+            />
+          </Kartu>
+        </div>
+      </div>
     </>
   );
 }
@@ -245,6 +423,7 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
 /* ═══════════════════════════════════════════════════════ kartu editor ══ */
 
 function KartuSupplier({
+  jenis,
   sup,
   terpilih,
   diminta,
@@ -255,6 +434,7 @@ function KartuSupplier({
   onHapus,
   onResetFreight,
 }: {
+  jenis: Jenis;
   sup: Supplier;
   terpilih: boolean;
   diminta: number;
@@ -265,6 +445,7 @@ function KartuSupplier({
   onHapus: () => void;
   onResetFreight: () => void;
 }) {
+  const l = LABEL[jenis];
   const simbol = sup.mataUang === "USD" ? "$" : "Rp";
   const inv = investasiSupplier(sup, kurs, perizinanPct, diminta);
   const cbm = sup.freight.pcsPerCBM > 0 ? inv.qty / sup.freight.pcsPerCBM : 0;
@@ -280,7 +461,7 @@ function KartuSupplier({
         <span className="min-w-[180px] flex-1">
           <IsianTeks
             nilai={sup.nama}
-            ariaLabel="Nama supplier"
+            ariaLabel={`Nama ${l.namaPakai}`}
             onUbah={(s) => onUbah((x) => ({ ...x, nama: s }))}
           />
         </span>
@@ -300,7 +481,7 @@ function KartuSupplier({
         {terpilih ? (
           <span className="badge bg-primary-subtle text-primary">dipakai</span>
         ) : (
-          <Tombol onClick={onPakai}>Pakai supplier ini</Tombol>
+          <Tombol onClick={onPakai}>Pakai {l.namaPakai} ini</Tombol>
         )}
         <TombolHapus label={`Hapus ${sup.nama}`} onClick={onHapus} />
       </div>
@@ -309,27 +490,27 @@ function KartuSupplier({
         Fixed cost - molding (sekali bayar)
       </p>
       <div className="grid gap-3 sm:grid-cols-3">
-        <Bidang label="Molding botol">
+        <Bidang label={l.molding[0]}>
           <IsianAngka
             nilai={sup.molding.botol}
             awalan={simbol}
-            ariaLabel="Molding botol"
+            ariaLabel={l.molding[0]}
             onUbah={(n) => onUbah((x) => ({ ...x, molding: { ...x.molding, botol: n } }))}
           />
         </Bidang>
-        <Bidang label="Molding cap / tutup">
+        <Bidang label={l.molding[1]}>
           <IsianAngka
             nilai={sup.molding.cap}
             awalan={simbol}
-            ariaLabel="Molding cap"
+            ariaLabel={l.molding[1]}
             onUbah={(n) => onUbah((x) => ({ ...x, molding: { ...x.molding, cap: n } }))}
           />
         </Bidang>
-        <Bidang label="Molding silikon / aksesoris">
+        <Bidang label={l.molding[2]}>
           <IsianAngka
             nilai={sup.molding.silikon}
             awalan={simbol}
-            ariaLabel="Molding silikon"
+            ariaLabel={l.molding[2]}
             onUbah={(n) => onUbah((x) => ({ ...x, molding: { ...x.molding, silikon: n } }))}
           />
         </Bidang>
@@ -337,30 +518,30 @@ function KartuSupplier({
 
       <p className="mb-2 mt-5 text-label uppercase text-fg-muted">Variable cost - per unit</p>
       <div className="grid gap-3 sm:grid-cols-4">
-        <Bidang label="Harga botol / pcs">
+        <Bidang label={l.satuan[0]}>
           <IsianAngka
             nilai={sup.satuan.botol}
             digit={2}
             awalan={simbol}
-            ariaLabel="Harga botol per pcs"
+            ariaLabel={l.satuan[0]}
             onUbah={(n) => onUbah((x) => ({ ...x, satuan: { ...x.satuan, botol: n } }))}
           />
         </Bidang>
-        <Bidang label="Harga cap / pcs">
+        <Bidang label={l.satuan[1]}>
           <IsianAngka
             nilai={sup.satuan.cap}
             digit={2}
             awalan={simbol}
-            ariaLabel="Harga cap per pcs"
+            ariaLabel={l.satuan[1]}
             onUbah={(n) => onUbah((x) => ({ ...x, satuan: { ...x.satuan, cap: n } }))}
           />
         </Bidang>
-        <Bidang label="Aksesoris / pcs">
+        <Bidang label={l.satuan[2]}>
           <IsianAngka
             nilai={sup.satuan.aksesoris}
             digit={2}
             awalan={simbol}
-            ariaLabel="Aksesoris per pcs"
+            ariaLabel={l.satuan[2]}
             onUbah={(n) => onUbah((x) => ({ ...x, satuan: { ...x.satuan, aksesoris: n } }))}
           />
         </Bidang>
@@ -446,6 +627,7 @@ function KartuSupplier({
 /* ══════════════════════════════════════════════════════════════ tabel ══ */
 
 function TabelBanding({
+  jenis,
   daftar,
   terpilihId,
   diminta,
@@ -453,6 +635,7 @@ function TabelBanding({
   kurs,
   perizinanPct,
 }: {
+  jenis: Jenis;
   daftar: Supplier[];
   terpilihId: string;
   diminta: number;
@@ -460,12 +643,13 @@ function TabelBanding({
   kurs: number;
   perizinanPct: number;
 }) {
+  const l = LABEL[jenis];
   const baris = daftar.map((s) => {
     const inv = investasiSupplier(s, kurs, perizinanPct, diminta);
-    /* Botol yang benar-benar TERISI kalau supplier ini yang dipakai. Membeli
-       lebih banyak karena MOQ tidak menambah botol jadi - cairannya tetap
-       segitu. Ini pembagi satu-satunya angka di tabel ini yang setara antar
-       kolom. */
+    /* Botol/box yang benar-benar TERISI/TERPAKAI kalau vendor ini yang
+       dipakai. Membeli lebih banyak karena MOQ tidak menambah botol jadi -
+       cairannya tetap segitu. Ini pembagi satu-satunya angka di tabel ini
+       yang setara antar kolom. */
     const jadi = Math.min(kapasitas, inv.qty);
     return {
       sup: s,
@@ -474,11 +658,11 @@ function TabelBanding({
       jadi,
     };
   });
-  /* ⚠️ "Termurah" HANYA diberikan pada biaya botol / unit.
-     Total investasi sengaja tidak diberi badge: dua supplier ber-MOQ berbeda
-     membelanjakan uang untuk jumlah botol yang berbeda, dan menobatkan yang
+  /* ⚠️ "Termurah" HANYA diberikan pada biaya per unit terpakai.
+     Total investasi sengaja tidak diberi badge: dua vendor ber-MOQ berbeda
+     membelanjakan uang untuk jumlah yang berbeda, dan menobatkan yang
      totalnya lebih kecil di atas dua qty yang tidak sama adalah cara tercepat
-     memilih vendor yang salah. Supplier yang seluruh harganya masih Rp0 dulu
+     memilih vendor yang salah. Vendor yang seluruh harganya masih Rp0 dulu
      selalu menang di baris itu. */
   const unitTermurah = Math.min(...baris.map((b) => b.satuan.totalLengkap));
 
@@ -509,7 +693,7 @@ function TabelBanding({
               kecil di dalam sel - pembaca mengalikan angka MOQ di kepalanya dan
               mendapat hasil yang meleset ribuan kali lipat. */}
           <Baris
-            label="Qty dibeli"
+            label={l.labelQty}
             kolom={baris}
             hi={kolomHi}
             render={(b) => (
@@ -534,7 +718,7 @@ function TabelBanding({
           />
 
           <Baris
-            label="Botol terisi"
+            label={l.labelTerisi}
             kolom={baris}
             hi={kolomHi}
             render={(b) => (
@@ -554,9 +738,9 @@ function TabelBanding({
             kolom={baris}
             hi={kolomHi}
             item={(b) => [
-              ["Botol", b.sup.molding.botol],
-              ["Cap", b.sup.molding.cap],
-              ["Silikon", b.sup.molding.silikon],
+              [l.labelKomponenMolding[0], b.sup.molding.botol],
+              [l.labelKomponenMolding[1], b.sup.molding.cap],
+              [l.labelKomponenMolding[2], b.sup.molding.silikon],
             ]}
             total={(b) => totalMolding(b.sup, kurs)}
             mataUang={(b) => b.sup.mataUang}
@@ -568,9 +752,9 @@ function TabelBanding({
             kolom={baris}
             hi={kolomHi}
             item={(b) => [
-              ["Botol", b.sup.satuan.botol],
-              ["Cap", b.sup.satuan.cap],
-              ["Aksesoris", b.sup.satuan.aksesoris],
+              [l.labelKomponenSatuan[0], b.sup.satuan.botol],
+              [l.labelKomponenSatuan[1], b.sup.satuan.cap],
+              [l.labelKomponenSatuan[2], b.sup.satuan.aksesoris],
             ]}
             total={(b) => b.satuan.botol + b.satuan.aksesoris}
             labelTotal="Total /pcs"
@@ -579,12 +763,14 @@ function TabelBanding({
             kurs={kurs}
           />
 
-          <Baris
-            label={`Perizinan ${persen(perizinanPct)} (total)`}
-            kolom={baris}
-            hi={kolomHi}
-            render={(b) => rupiah(b.inv.perizinan)}
-          />
+          {perizinanPct > 0 ? (
+            <Baris
+              label={`Perizinan ${persen(perizinanPct)} (total)`}
+              kolom={baris}
+              hi={kolomHi}
+              render={(b) => rupiah(b.inv.perizinan)}
+            />
+          ) : null}
 
           <Baris
             label="Freight Forwarder"
@@ -621,7 +807,7 @@ function TabelBanding({
           </tr>
           <tr>
             <td className="td font-semibold text-fg">
-              Biaya botol / unit
+              Biaya {l.namaUnit} / unit
               <span className="ml-1 font-normal text-fg-subtle">(termasuk freight)</span>
             </td>
             {baris.map((b) => (
@@ -649,7 +835,7 @@ type Kolom = {
   sup: Supplier;
   inv: ReturnType<typeof investasiSupplier>;
   satuan: ReturnType<typeof biayaSatuan>;
-  /** Botol yang benar-benar terisi kalau supplier ini dipakai. */
+  /** Botol/box yang benar-benar terisi/terpakai kalau vendor ini dipakai. */
   jadi: number;
 };
 

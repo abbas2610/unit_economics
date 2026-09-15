@@ -16,13 +16,13 @@
  * tersendiri di rincian akan menghitungnya dua kali, dan hasilnya masih terlihat
  * seperti angka yang wajar.
  */
-import { boxPerBotol } from "@/contexts/asumsi/domain/asumsi";
 import { nilaiPembelian, totalLegalVarian } from "@/contexts/fragrance/domain/varian";
 import { investasiSupplier } from "@/contexts/supplier/domain/supplier";
 import type { InvestasiSupplier, Supplier } from "@/contexts/supplier/domain/supplier";
 import type { Dokumen } from "@/contexts/dokumen/domain/dokumen";
 import {
   kapasitasCairan,
+  packagingTerpilih,
   qtyDiminta,
   qtyProduksi,
   supplierTerpilih,
@@ -34,6 +34,19 @@ export type RincianInvestasi = {
   supplierBesar: Supplier | undefined;
   invKecil: InvestasiSupplier;
   invBesar: InvestasiSupplier;
+
+  /** Vendor packaging (box) terpilih, per ukuran — lihat `packagingTerpilih()`. */
+  packagingKecil: Supplier | undefined;
+  packagingBesar: Supplier | undefined;
+  /**
+   * Investasi ke vendor packaging, dihitung pada qty PRODUKSI botol (`qtyKecil`
+   * / `qtyBesar`) — bukan qty diminta ke supplier botol. Box dibutuhkan begitu
+   * botol benar-benar terisi; MOQ vendor packaging sendiri bisa memaksa beli
+   * lebih banyak box, dan kelebihan itu ikut ke `.total` sama seperti kelebihan
+   * MOQ supplier botol.
+   */
+  invPackagingKecil: InvestasiSupplier;
+  invPackagingBesar: InvestasiSupplier;
 
   /** Botol yang JADI. Ini yang mengalikan OEM, box, dan fulfillment. */
   qtyKecil: number;
@@ -114,6 +127,14 @@ export function initialInvestment(dok: Dokumen): RincianInvestasi {
     ? investasiSupplier(supBesar, kurs, perizinanPct, qtyDiminta(dok, "besar"))
     : NOL;
 
+  /* Packaging TIDAK dikenakan perizinan (0), dan qty basisnya PRODUKSI —
+     bukan diminta ke supplier botol. Box dibutuhkan sebanyak botol yang
+     benar-benar jadi, bukan sebanyak yang dipesan ke supplier botol. */
+  const pkgKecil = packagingTerpilih(dok, "kecil");
+  const pkgBesar = packagingTerpilih(dok, "besar");
+  const invPackagingKecil = pkgKecil ? investasiSupplier(pkgKecil, kurs, 0, qtyKecil) : NOL;
+  const invPackagingBesar = pkgBesar ? investasiSupplier(pkgBesar, kurs, 0, qtyBesar) : NOL;
+
   const totalBotol = qtyKecil + qtyBesar;
 
   const fragranceDasar = nilaiPembelian(dok.varian, kurs);
@@ -123,7 +144,7 @@ export function initialInvestment(dok: Dokumen): RincianInvestasi {
   const legalVarian = totalLegalVarian(dok.varian, dok.legalPerVarian);
   const bahanBaku = fragranceTotal + oemTotal + legalVarian;
 
-  const boxTotal = totalBotol * boxPerBotol(dok.asumsi);
+  const boxTotal = invPackagingKecil.total + invPackagingBesar.total;
   const botolPacking = invKecil.total + invBesar.total + boxTotal;
   const fulfillmentTotal = totalBotol * fulfillment;
   const customTotal = dok.investasiCustom.reduce((a, c) => a + (c.nilai || 0), 0);
@@ -150,6 +171,10 @@ export function initialInvestment(dok: Dokumen): RincianInvestasi {
     supplierBesar: supBesar,
     invKecil,
     invBesar,
+    packagingKecil: pkgKecil,
+    packagingBesar: pkgBesar,
+    invPackagingKecil,
+    invPackagingBesar,
     qtyKecil,
     qtyBesar,
     totalBotol,

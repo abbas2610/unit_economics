@@ -130,7 +130,9 @@ function KartuSKU({
     <Kartu>
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-card-title text-fg">{judul}</h2>
-        <span className="text-meta text-fg-subtle">{r.supplier?.nama ?? "-"}</span>
+        <span className="text-meta text-fg-subtle">
+          {r.supplier?.nama ?? "-"} · {r.packaging?.nama ?? "-"}
+        </span>
       </div>
 
       <Rincian>
@@ -163,9 +165,16 @@ function KartuSKU({
             </BarisRincian>
             {r.kelebihanBotol > 0 ? (
               <BarisRincian
-                label={`Kelebihan MOQ ${pcs(r.kelebihanBotol)} (÷ ${pcs(r.qtyProduksi)})`}
+                label={`Kelebihan MOQ botol ${pcs(r.kelebihanBotol)} (÷ ${pcs(r.qtyProduksi)})`}
               >
-                {rupiah(r.amortisasiKelebihan)}
+                {rupiah(r.amortisasiKelebihanBotol)}
+              </BarisRincian>
+            ) : null}
+            {r.kelebihanPackaging > 0 ? (
+              <BarisRincian
+                label={`Kelebihan MOQ packaging ${pcs(r.kelebihanPackaging)} (÷ ${pcs(r.qtyProduksi)})`}
+              >
+                {rupiah(r.amortisasiKelebihanPackaging)}
               </BarisRincian>
             ) : null}
           </>

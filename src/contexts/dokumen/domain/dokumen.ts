@@ -26,7 +26,7 @@ import { campuranAwal } from "@/contexts/fragrance/domain/campuran";
 import type { LegalPerVarian, Varian } from "@/contexts/fragrance/domain/varian";
 import { legalPerVarianAwal, varianAwal } from "@/contexts/fragrance/domain/varian";
 import type { Supplier } from "@/contexts/supplier/domain/supplier";
-import { supplierAwal } from "@/contexts/supplier/domain/supplier";
+import { packagingAwal, supplierAwal } from "@/contexts/supplier/domain/supplier";
 import type { KomponenCustom, Skenario } from "@/contexts/unit-economics/domain/skenario";
 
 export type Dokumen = {
@@ -41,8 +41,24 @@ export type Dokumen = {
 
   supplierKecil: Supplier[];
   supplierBesar: Supplier[];
-  /** Supplier yang dipakai Initial Investment & Unit Economics. */
-  pilihan: { kecilId: string; besarId: string };
+
+  /**
+   * Vendor packaging (box + aksesoris box), per ukuran botol.
+   *
+   * Bentuknya sama dengan `Supplier` — lihat `packagingAwal()`. Dulu box cost
+   * satu angka global di Asumsi Dasar; sekarang per-ukuran, dengan molding
+   * (fixed) dan satuan (variable) terpisah, persis seperti supplier botol.
+   */
+  packagingKecil: Supplier[];
+  packagingBesar: Supplier[];
+
+  /** Supplier & packaging yang dipakai Initial Investment & Unit Economics. */
+  pilihan: {
+    kecilId: string;
+    besarId: string;
+    packagingKecilId: string;
+    packagingBesarId: string;
+  };
 
   /**
    * Berapa botol yang DIPESAN, kalau bukan sebanyak yang cairannya cukup.
@@ -94,6 +110,7 @@ export type Dokumen = {
 export function dokumenAwal(): Dokumen {
   const varian = varianAwal();
   const supplier = supplierAwal();
+  const packaging = packagingAwal();
   const asumsi = asumsiAwal();
   return {
     versi: 1,
@@ -104,7 +121,14 @@ export function dokumenAwal(): Dokumen {
     dimensi: dimensiAwal(),
     supplierKecil: supplier.kecil,
     supplierBesar: supplier.besar,
-    pilihan: { kecilId: supplier.kecil[0].id, besarId: supplier.besar[0].id },
+    packagingKecil: packaging.kecil,
+    packagingBesar: packaging.besar,
+    pilihan: {
+      kecilId: supplier.kecil[0].id,
+      besarId: supplier.besar[0].id,
+      packagingKecilId: packaging.kecil[0].id,
+      packagingBesarId: packaging.besar[0].id,
+    },
     pembelian: { kecil: null, besar: null },
     harga: { kecil: 200_000, besar: 350_000 },
     marketing: { offline: 300_000_000, online: 200_000_000, lainnya: 50_000_000 },

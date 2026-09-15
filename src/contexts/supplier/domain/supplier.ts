@@ -173,6 +173,47 @@ export function investasiSupplier(
 export const cariSupplier = (daftar: Supplier[], id: string): Supplier | undefined =>
   daftar.find((s) => s.id === id) ?? daftar[0];
 
+/**
+ * Vendor packaging (box + aksesoris box) per ukuran botol.
+ *
+ * Bentuknya sama persis dengan `Supplier` — molding (fixed, sekali bayar),
+ * satuan (per pcs), MOQ, freight forwarder — karena pertanyaannya sama persis:
+ * "vendor mana yang paling murah untuk qty ini", cuma objeknya box, bukan
+ * botol. `investasiSupplier()` dan `biayaSatuan()` dipakai apa adanya, dengan
+ * `perizinanPct` dikunci `0` di tiap pemanggil — perizinan itu % dari harga
+ * IMPOR botol, dan box tidak dikenakannya.
+ *
+ * Nilai awal 20.000 + 5.000 = Rp25.000/pcs meneruskan angka `boxPackaging` +
+ * `boxAksesoris` yang dulu satu nilai global di Asumsi Dasar (lihat riwayat
+ * git) — molding 0, MOQ 0, freight mati, supaya dokumen yang baru dibuat
+ * menghasilkan COGS & Initial Investment yang PERSIS sama dengan sebelum
+ * packaging jadi vendor sendiri.
+ */
+export const packagingAwal = (): Record<UkuranBotol, Supplier[]> => ({
+  kecil: [
+    {
+      id: "pk1",
+      nama: "Box Default",
+      mataUang: "IDR",
+      moq: 0,
+      molding: { botol: 0, cap: 0, silikon: 0 },
+      satuan: { botol: 20_000, cap: 0, aksesoris: 5_000 },
+      freight: { aktif: false, pcsPerCBM: 1, ratePerCBM: 7_000_000 },
+    },
+  ],
+  besar: [
+    {
+      id: "pb1",
+      nama: "Box Default",
+      mataUang: "IDR",
+      moq: 0,
+      molding: { botol: 0, cap: 0, silikon: 0 },
+      satuan: { botol: 20_000, cap: 0, aksesoris: 5_000 },
+      freight: { aktif: false, pcsPerCBM: 1, ratePerCBM: 7_000_000 },
+    },
+  ],
+});
+
 export const supplierAwal = (): Record<UkuranBotol, Supplier[]> => ({
   kecil: [
     {

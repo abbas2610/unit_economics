@@ -93,6 +93,8 @@ export function idBerikutnya(dok: Dokumen): number {
   for (const id of [
     ...dok.supplierKecil.map((s) => s.id),
     ...dok.supplierBesar.map((s) => s.id),
+    ...dok.packagingKecil.map((s) => s.id),
+    ...dok.packagingBesar.map((s) => s.id),
     ...dok.skenario.map((s) => s.id),
   ]) {
     const m = /(\d+)$/.exec(id ?? "");
@@ -121,6 +123,8 @@ function perbaikiIdGanda(dok: Dokumen): Dokumen {
         const idBaru = awalan + counter++;
         if (pilihan.kecilId === idLama) pilihan.kecilId = idBaru;
         if (pilihan.besarId === idLama) pilihan.besarId = idBaru;
+        if (pilihan.packagingKecilId === idLama) pilihan.packagingKecilId = idBaru;
+        if (pilihan.packagingBesarId === idLama) pilihan.packagingBesarId = idBaru;
         terlihat.add(idBaru);
         return { ...item, id: idBaru };
       }
@@ -132,6 +136,8 @@ function perbaikiIdGanda(dok: Dokumen): Dokumen {
     ...dok,
     supplierKecil: bersihkan(dok.supplierKecil, "s"),
     supplierBesar: bersihkan(dok.supplierBesar, "l"),
+    packagingKecil: bersihkan(dok.packagingKecil, "pk"),
+    packagingBesar: bersihkan(dok.packagingBesar, "pb"),
     skenario: bersihkan(dok.skenario, "sc"),
     pilihan,
   };
@@ -179,6 +185,33 @@ const supplierDari = (v: unknown, awalan: string, urut: number, kursBawaan: numb
     },
   };
 };
+
+/**
+ * Packaging (box) dari payload lama yang belum mengenal vendor packaging sama
+ * sekali — bentuk sebelum fitur ini ada, di mana box cost adalah DUA angka
+ * global (`boxPackaging` + `boxAksesoris`) yang dipakai sama persis untuk
+ * kedua ukuran botol.
+ *
+ * ⚠️ Dibangkitkan dari ANGKA YANG TERSIMPAN di payload, bukan dari
+ * `packagingAwal()` — tim yang sudah mengisi box cost sungguhan di Asumsi
+ * Dasar (mis. Rp30.000, bukan default Rp20.000) tidak boleh diam-diam
+ * kembali ke angka contoh begitu dokumennya dibaca ulang. Ini persis pola
+ * yang pernah menghapus nama supplier asli di `deteksiAnomaliV1` — payload
+ * yang "sah" belum tentu boleh ditimpa nilai bawaan.
+ */
+const packagingDariFlat = (asumsiRaw: Rekaman, awalan: string, freightRateBawaan: number): Supplier => ({
+  id: awalan + "1",
+  nama: "Box Default",
+  mataUang: "IDR",
+  moq: 0,
+  molding: { botol: 0, cap: 0, silikon: 0 },
+  satuan: {
+    botol: num(asumsiRaw.boxPackaging, 20_000),
+    cap: 0,
+    aksesoris: num(asumsiRaw.boxAksesoris, 5_000),
+  },
+  freight: { aktif: false, pcsPerCBM: 1, ratePerCBM: freightRateBawaan },
+});
 
 const komponenCustomDari = (v: unknown, urut: number): KomponenCustom => {
   const c = objek(v);
@@ -249,6 +282,11 @@ function dariV0(payload: Rekaman): Dokumen {
   const varianList = larik(base.fragrances).map(varianDari);
   const supKecil = larik(payload.smallSuppliers).map((s, i) => supplierDari(s, "s", i + 1, freightPerCBM));
   const supBesar = larik(payload.largeSuppliers).map((s, i) => supplierDari(s, "l", i + 1, freightPerCBM));
+  /* v0 tidak mengenal vendor packaging sama sekali — box cost adalah dua
+     angka global (`base.boxPackaging` + `base.boxAksesoris`), sama untuk
+     kedua ukuran. Dibangkitkan dari angka itu, bukan `packagingAwal()`. */
+  const pkgKecil = [packagingDariFlat(base, "pk", freightPerCBM)];
+  const pkgBesar = [packagingDariFlat(base, "pb", freightPerCBM)];
 
   return {
     versi: 1,
@@ -261,8 +299,6 @@ function dariV0(payload: Rekaman): Dokumen {
       wastePct: num(base.wastePct, awal.asumsi.wastePct),
       ppnPct: num(base.ppnPct, awal.asumsi.ppnPct),
       perizinanPct: num(base.perizinanPct, awal.asumsi.perizinanPct),
-      boxPackaging: num(base.boxPackaging, awal.asumsi.boxPackaging),
-      boxAksesoris: num(base.boxAksesoris, awal.asumsi.boxAksesoris),
       fulfillment: num(base.fulfillmentCost, awal.asumsi.fulfillment),
       /* Payload v0 tidak pernah punya field ini — botol kecil dulu konstanta,
          bukan asumsi tersimpan. `num()` jatuh ke default 15 mL. */
@@ -285,9 +321,13 @@ function dariV0(payload: Rekaman): Dokumen {
     },
     supplierKecil: supKecil.length > 0 ? supKecil : awal.supplierKecil,
     supplierBesar: supBesar.length > 0 ? supBesar : awal.supplierBesar,
+    packagingKecil: pkgKecil,
+    packagingBesar: pkgBesar,
     pilihan: {
       kecilId: teks(selection.smallId, awal.pilihan.kecilId),
       besarId: teks(selection.largeId, awal.pilihan.besarId),
+      packagingKecilId: pkgKecil[0].id,
+      packagingBesarId: pkgBesar[0].id,
     },
     /* Bentuk v0 tidak punya konsep pembelian terpisah — di sana qty botol SELALU
        mengikuti kapasitas cairan. `null` mempertahankan perilaku itu persis. */
@@ -327,6 +367,23 @@ function dariV1(payload: Rekaman): Dokumen {
   const varianList = larik(payload.varian).map(varianDari);
   const supKecil = larik(payload.supplierKecil).map((s, i) => supplierDari(s, "s", i + 1, freightPerCBM));
   const supBesar = larik(payload.supplierBesar).map((s, i) => supplierDari(s, "l", i + 1, freightPerCBM));
+  /* ⚠️ Payload v1 dari SEBELUM packaging jadi vendor sendiri tidak punya
+     `packagingKecil`/`packagingBesar` sama sekali — box cost masih dua angka
+     global di `asumsi`. Dibangkitkan dari angka ITU (bukan `packagingAwal()`)
+     supaya box cost sungguhan yang sudah diisi tim tidak diam-diam kembali ke
+     nilai contoh. Payload yang SUDAH punya field ini (dokumen yang dibuat
+     setelah fitur ini ada) dibaca apa adanya lewat `supplierDari` yang sama
+     dipakai supplier botol — bentuknya identik. */
+  const pkgKecilMentah = larik(payload.packagingKecil);
+  const pkgBesarMentah = larik(payload.packagingBesar);
+  const pkgKecil =
+    pkgKecilMentah.length > 0
+      ? pkgKecilMentah.map((s, i) => supplierDari(s, "pk", i + 1, freightPerCBM))
+      : [packagingDariFlat(asumsi, "pk", freightPerCBM)];
+  const pkgBesar =
+    pkgBesarMentah.length > 0
+      ? pkgBesarMentah.map((s, i) => supplierDari(s, "pb", i + 1, freightPerCBM))
+      : [packagingDariFlat(asumsi, "pb", freightPerCBM)];
 
   return {
     versi: 1,
@@ -339,8 +396,6 @@ function dariV1(payload: Rekaman): Dokumen {
       wastePct: num(asumsi.wastePct, awal.asumsi.wastePct),
       ppnPct: num(asumsi.ppnPct, awal.asumsi.ppnPct),
       perizinanPct: num(asumsi.perizinanPct, awal.asumsi.perizinanPct),
-      boxPackaging: num(asumsi.boxPackaging, awal.asumsi.boxPackaging),
-      boxAksesoris: num(asumsi.boxAksesoris, awal.asumsi.boxAksesoris),
       fulfillment: num(asumsi.fulfillment, awal.asumsi.fulfillment),
       mlBotolKecil: num(asumsi.mlBotolKecil, awal.asumsi.mlBotolKecil),
       mlBotolBesar: num(asumsi.mlBotolBesar, awal.asumsi.mlBotolBesar),
@@ -361,9 +416,13 @@ function dariV1(payload: Rekaman): Dokumen {
     },
     supplierKecil: supKecil.length > 0 ? supKecil : awal.supplierKecil,
     supplierBesar: supBesar.length > 0 ? supBesar : awal.supplierBesar,
+    packagingKecil: pkgKecil,
+    packagingBesar: pkgBesar,
     pilihan: {
       kecilId: teks(pilihan.kecilId, awal.pilihan.kecilId),
       besarId: teks(pilihan.besarId, awal.pilihan.besarId),
+      packagingKecilId: teks(pilihan.packagingKecilId, pkgKecil[0].id),
+      packagingBesarId: teks(pilihan.packagingBesarId, pkgBesar[0].id),
     },
     pembelian: {
       kecil: numOpsional(pembelian.kecil),
@@ -449,12 +508,20 @@ export function bacaDokumen(payload: unknown): Dokumen {
 function pastikanPilihanSahih(dok: Dokumen): Dokumen {
   const adaKecil = dok.supplierKecil.some((s) => s.id === dok.pilihan.kecilId);
   const adaBesar = dok.supplierBesar.some((s) => s.id === dok.pilihan.besarId);
-  if (adaKecil && adaBesar) return dok;
+  const adaPkgKecil = dok.packagingKecil.some((s) => s.id === dok.pilihan.packagingKecilId);
+  const adaPkgBesar = dok.packagingBesar.some((s) => s.id === dok.pilihan.packagingBesarId);
+  if (adaKecil && adaBesar && adaPkgKecil && adaPkgBesar) return dok;
   return {
     ...dok,
     pilihan: {
       kecilId: adaKecil ? dok.pilihan.kecilId : (dok.supplierKecil[0]?.id ?? ""),
       besarId: adaBesar ? dok.pilihan.besarId : (dok.supplierBesar[0]?.id ?? ""),
+      packagingKecilId: adaPkgKecil
+        ? dok.pilihan.packagingKecilId
+        : (dok.packagingKecil[0]?.id ?? ""),
+      packagingBesarId: adaPkgBesar
+        ? dok.pilihan.packagingBesarId
+        : (dok.packagingBesar[0]?.id ?? ""),
     },
   };
 }

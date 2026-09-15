@@ -46,10 +46,6 @@ export type Asumsi = {
   /** Perizinan & legalitas botol, % dari nilai botol per pcs. */
   perizinanPct: number;
 
-  /** Box packaging per botol. */
-  boxPackaging: number;
-  /** Aksesoris box (gift card, dll) per botol. */
-  boxAksesoris: number;
   /** Fulfillment per botol. */
   fulfillment: number;
 
@@ -67,10 +63,6 @@ export const mlBotol = (asumsi: Asumsi, ukuran: UkuranBotol): number =>
 export const oemPerBotol = (asumsi: Asumsi, ukuran: UkuranBotol): number =>
   ukuran === "kecil" ? asumsi.oemKecil : asumsi.oemBesar;
 
-/** Box packaging + aksesoris box. Satu angka, dipakai per botol di mana-mana. */
-export const boxPerBotol = (asumsi: Asumsi): number =>
-  asumsi.boxPackaging + asumsi.boxAksesoris;
-
 /** Konversi nilai bermata uang ke IDR memakai kurs yang berlaku. */
 export const keIDR = (nilai: number, mataUang: "IDR" | "USD", kurs: number): number =>
   mataUang === "USD" ? (nilai || 0) * kurs : nilai || 0;
@@ -84,8 +76,6 @@ export const asumsiAwal = (): Asumsi => ({
   wastePct: 30,
   ppnPct: 11,
   perizinanPct: 10,
-  boxPackaging: 20_000,
-  boxAksesoris: 5_000,
   fulfillment: 5_000,
   mlBotolKecil: ML_BOTOL_KECIL_DEFAULT,
   mlBotolBesar: 100,

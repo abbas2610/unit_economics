@@ -12,7 +12,6 @@
  * botol untuk parfum yang tidak akan pernah jadi.
  */
 import { pcs, persen, rupiah, rupiahRingkas } from "@/bersama/format";
-import { boxPerBotol } from "@/contexts/asumsi/domain/asumsi";
 import { initialInvestment } from "@/contexts/investasi/aplikasi/investasi";
 import { useDokumen } from "@/components/dokumen-provider";
 import {
@@ -88,6 +87,44 @@ export function InvestasiLayar() {
               }
             >
               {dok.supplierBesar.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nama}
+                </option>
+              ))}
+            </select>
+          </Bidang>
+
+          <Bidang label="Packaging botol kecil">
+            <select
+              className="h-control rounded-md border border-border bg-surface px-2.5 text-body text-fg outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
+              value={dok.pilihan.packagingKecilId}
+              onChange={(e) =>
+                ubah((d) => ({
+                  ...d,
+                  pilihan: { ...d.pilihan, packagingKecilId: e.target.value },
+                }))
+              }
+            >
+              {dok.packagingKecil.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nama}
+                </option>
+              ))}
+            </select>
+          </Bidang>
+
+          <Bidang label="Packaging botol besar">
+            <select
+              className="h-control rounded-md border border-border bg-surface px-2.5 text-body text-fg outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
+              value={dok.pilihan.packagingBesarId}
+              onChange={(e) =>
+                ubah((d) => ({
+                  ...d,
+                  pilihan: { ...d.pilihan, packagingBesarId: e.target.value },
+                }))
+              }
+            >
+              {dok.packagingBesar.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.nama}
                 </option>
@@ -192,9 +229,14 @@ export function InvestasiLayar() {
                 {rupiah(inv.invBesar.total)}
               </BarisRincian>
               <BarisRincian
-                label={`Box packaging (${pcs(inv.totalBotol)} × ${rupiah(boxPerBotol(dok.asumsi))})`}
+                label={`Packaging kecil - ${inv.packagingKecil?.nama ?? "-"} (${pcs(inv.qtyKecil)})`}
               >
-                {rupiah(inv.boxTotal)}
+                {rupiah(inv.invPackagingKecil.total)}
+              </BarisRincian>
+              <BarisRincian
+                label={`Packaging besar - ${inv.packagingBesar?.nama ?? "-"} (${pcs(inv.qtyBesar)})`}
+              >
+                {rupiah(inv.invPackagingBesar.total)}
               </BarisRincian>
               <BarisRincian label="Total botol & packaging" jenis="subtotal">
                 {rupiah(inv.botolPacking)}
