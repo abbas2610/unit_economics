@@ -38,6 +38,13 @@ export type Supplier = {
    * tarif tiap supplier alih-alih mengganti tarif dasarnya.
    */
   freight: { aktif: boolean; pcsPerCBM: number; ratePerCBM: number };
+  /**
+   * Foto produk, bisa lebih dari satu — array data URL base64 (JPEG, sisi
+   * terpanjang ≤480px, lihat `kecilkanFoto()` di `ui.tsx`). Opsional, murni
+   * informasi — tidak ikut rumus biaya mana pun. Foto pertama tampil di kolom
+   * tabel perbandingan; semuanya bisa dilihat lewat lightbox.
+   */
+  foto?: string[];
 };
 
 /** Rincian biaya per pcs, sudah dalam IDR. */

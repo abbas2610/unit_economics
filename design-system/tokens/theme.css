@@ -83,6 +83,14 @@
   --color-neutral-bg: #f0f2f8;
   --color-neutral-fg: #5b6072;
 
+  /* ---------- Overlay foto ----------
+     Lightbox foto produk butuh backdrop yang SELALU gelap, terlepas tema
+     terang/gelap aplikasi sedang apa — sama seperti `--color-primary` dan
+     `--color-ink` di atas, nilainya diulang apa adanya di blok `.dark`,
+     bukan dihilangkan. */
+  --color-scrim: #0d0f18;
+  --color-scrim-fg: #f4f5f9;
+
   /* ---------- Tipografi ----------
      Arial di seluruh aplikasi, atas permintaan tim — bukan Plus Jakarta Sans
      (builder lama) lagi. Arial font sistem: tidak ada berkas yang dimuat,
@@ -181,6 +189,9 @@
   --color-fg-subtle: #8b90a6; /*  5,6:1 */
 
   --color-ink: #161a2b; /* TETAP — topbar selalu gelap di kedua tema */
+
+  --color-scrim: #0d0f18; /* TETAP — backdrop lightbox foto selalu gelap */
+  --color-scrim-fg: #f4f5f9; /* TETAP */
 
   --color-brand: #7b98ff;
   --color-primary: #3d5af1; /* TETAP — putih di atasnya 5,3:1 */

@@ -21,6 +21,7 @@
  * salinan lagi yang bisa diam-diam berbeda - persis alasan kecil/besar sudah
  * satu komponen.
  */
+import { useState } from "react";
 import { angka, pcs, persen, rupiah, usd } from "@/bersama/format";
 import { cx } from "@/bersama/cx";
 import type { UkuranBotol } from "@/contexts/asumsi/domain/asumsi";
@@ -52,9 +53,11 @@ import {
   Kartu,
   NilaiTurunan,
   Sakelar,
+  LightboxFoto,
   Segmen,
   Tombol,
   TombolHapus,
+  UnggahFoto,
 } from "./ui";
 
 type Jenis = "botol" | "packaging";
@@ -450,6 +453,17 @@ function KartuSupplier({
   const inv = investasiSupplier(sup, kurs, perizinanPct, diminta);
   const cbm = sup.freight.pcsPerCBM > 0 ? inv.qty / sup.freight.pcsPerCBM : 0;
 
+  const setFoto = (foto: string[]) =>
+    onUbah((x) => {
+      if (foto.length > 0) return { ...x, foto };
+      // Hapus kuncinya sama sekali - bukan `foto: []` - supaya dokumen yang
+      // belum pernah menyentuh foto tetap identik dengan sebelum field ini
+      // ada (lihat catatan di `supplierDari`, migrasi.ts).
+      const salinan = { ...x };
+      delete salinan.foto;
+      return salinan;
+    });
+
   return (
     <section
       className={cx(
@@ -484,6 +498,12 @@ function KartuSupplier({
           <Tombol onClick={onPakai}>Pakai {l.namaPakai} ini</Tombol>
         )}
         <TombolHapus label={`Hapus ${sup.nama}`} onClick={onHapus} />
+      </div>
+
+      <div className="mb-5">
+        <Bidang label="Foto produk" petunjuk="(opsional, bisa lebih dari satu, tampil di tabel perbandingan)">
+          <UnggahFoto foto={sup.foto} onUbah={setFoto} ariaLabel={`foto ${sup.nama}`} />
+        </Bidang>
       </div>
 
       <p className="mb-2 text-label uppercase text-fg-muted">
@@ -668,166 +688,219 @@ function TabelBanding({
 
   const kolomHi = (id: string) => (id === terpilihId ? "bg-primary-subtle/50" : "");
 
+  /* Setiap FOTO (bukan tiap supplier) jadi satu entri di sini, berurutan per
+     kolom - supplier dengan tiga foto menyumbang tiga entri berturutan.
+     Panah kiri/kanan di lightbox menyisir daftar ini apa adanya, jadi ia
+     otomatis jalan terus ke supplier berikutnya begitu foto supplier ini
+     habis, dan tidak pernah berhenti di kolom tanpa gambar sama sekali. */
+  const semuaFoto = baris.flatMap((b) =>
+    (b.sup.foto ?? []).map((foto, i) => ({
+      supplierId: b.sup.id,
+      id: `${b.sup.id}-${i}`,
+      nama: (b.sup.foto?.length ?? 0) > 1 ? `${b.sup.nama} (${i + 1}/${b.sup.foto!.length})` : b.sup.nama,
+      foto,
+    })),
+  );
+  const [fotoAktif, setFotoAktif] = useState<number | null>(null);
+
   return (
-    <BungkusTabel>
-      <table className="w-full border-collapse">
-        <thead>
-          <tr>
-            <th className="th rounded-tl-md">
-              Komponen{" "}
-              <span className="font-normal normal-case tracking-normal text-fg-subtle">
-                (kurs terpakai {rupiah(kurs)}/USD)
-              </span>
-            </th>
-            {baris.map((b) => (
-              <th key={b.sup.id} className={cx("th text-right", kolomHi(b.sup.id))}>
-                {b.sup.nama}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {/* Qty DIBELI naik ke baris pertama, MOQ turun jadi keterangannya.
-              Sebelumnya MOQ punya baris sendiri dengan angka besar, sementara
-              qty yang benar-benar mengalikan harga cuma muncul sebagai teks
-              kecil di dalam sel - pembaca mengalikan angka MOQ di kepalanya dan
-              mendapat hasil yang meleset ribuan kali lipat. */}
-          <Baris
-            label={l.labelQty}
-            kolom={baris}
-            hi={kolomHi}
-            render={(b) => (
-              <span className="flex flex-col items-end">
-                <span className="font-semibold text-fg">{pcs(b.inv.qty)}</span>
-                {/* `moq-keterangan`: disembunyikan khusus di laporan cetak
-                    (lihat globals.css) — keterangan MOQ berguna saat menyunting
-                    supplier di layar, tapi di laporan ringkas cuma menambah
-                    baris tanpa menambah keputusan yang bisa diambil dari
-                    kertas. */}
-                <span className="moq-keterangan text-meta text-fg-subtle">
-                  {b.inv.moqMengikat ? (
-                    <span className="badge bg-warning-bg text-warning-fg">
-                      MOQ {pcs(b.sup.moq)} mengikat
-                    </span>
-                  ) : (
-                    <>MOQ {pcs(b.sup.moq)} - tidak mengikat</>
-                  )}
+    <>
+      <BungkusTabel>
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              <th className="th rounded-tl-md">
+                Komponen{" "}
+                <span className="font-normal normal-case tracking-normal text-fg-subtle">
+                  (kurs terpakai {rupiah(kurs)}/USD)
                 </span>
-              </span>
-            )}
-          />
-
-          <Baris
-            label={l.labelTerisi}
-            kolom={baris}
-            hi={kolomHi}
-            render={(b) => (
-              <span className="flex flex-col items-end">
-                <span>{pcs(b.jadi)}</span>
-                {b.jadi < b.inv.qty ? (
-                  <span className="text-meta text-fg-subtle">
-                    {pcs(b.inv.qty - b.jadi)} jadi stok
-                  </span>
-                ) : null}
-              </span>
-            )}
-          />
-
-          <BarisTumpuk
-            label="Molding (sekali bayar)"
-            kolom={baris}
-            hi={kolomHi}
-            item={(b) => [
-              [l.labelKomponenMolding[0], b.sup.molding.botol],
-              [l.labelKomponenMolding[1], b.sup.molding.cap],
-              [l.labelKomponenMolding[2], b.sup.molding.silikon],
-            ]}
-            total={(b) => totalMolding(b.sup, kurs)}
-            mataUang={(b) => b.sup.mataUang}
-            kurs={kurs}
-          />
-
-          <BarisTumpuk
-            label="Biaya variable / pcs"
-            kolom={baris}
-            hi={kolomHi}
-            item={(b) => [
-              [l.labelKomponenSatuan[0], b.sup.satuan.botol],
-              [l.labelKomponenSatuan[1], b.sup.satuan.cap],
-              [l.labelKomponenSatuan[2], b.sup.satuan.aksesoris],
-            ]}
-            total={(b) => b.satuan.botol + b.satuan.aksesoris}
-            labelTotal="Total /pcs"
-            ekstra={(b) => [`Total beli (${pcs(b.inv.qty)})`, b.inv.botol + b.inv.aksesoris]}
-            mataUang={(b) => b.sup.mataUang}
-            kurs={kurs}
-          />
-
-          {perizinanPct > 0 ? (
+              </th>
+              {baris.map((b) => {
+                const fotoSupplier = b.sup.foto ?? [];
+                return (
+                  <th key={b.sup.id} className={cx("th text-right", kolomHi(b.sup.id))}>
+                    <span className="flex items-center justify-end gap-2">
+                      {fotoSupplier.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFotoAktif(semuaFoto.findIndex((f) => f.supplierId === b.sup.id))
+                          }
+                          aria-label={`Lihat foto ${b.sup.nama}`}
+                          className="relative shrink-0 rounded-sm transition hover:ring-2 hover:ring-primary/40"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element -- data URL lokal, bukan aset yang perlu dioptimalkan Next */}
+                          <img
+                            src={fotoSupplier[0]}
+                            alt=""
+                            className="h-[22px] w-[22px] rounded-sm border border-border object-cover"
+                          />
+                          {fotoSupplier.length > 1 ? (
+                            <span className="absolute -right-1.5 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-border bg-surface px-0.5 text-badge font-semibold normal-case text-fg-muted">
+                              {fotoSupplier.length}
+                            </span>
+                          ) : null}
+                        </button>
+                      ) : null}
+                      <span>{b.sup.nama}</span>
+                    </span>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {/* Qty DIBELI naik ke baris pertama, MOQ turun jadi keterangannya.
+                Sebelumnya MOQ punya baris sendiri dengan angka besar, sementara
+                qty yang benar-benar mengalikan harga cuma muncul sebagai teks
+                kecil di dalam sel - pembaca mengalikan angka MOQ di kepalanya dan
+                mendapat hasil yang meleset ribuan kali lipat. */}
             <Baris
-              label={`Perizinan ${persen(perizinanPct)} (total)`}
+              label={l.labelQty}
               kolom={baris}
               hi={kolomHi}
-              render={(b) => rupiah(b.inv.perizinan)}
-            />
-          ) : null}
-
-          <Baris
-            label="Freight Forwarder"
-            kolom={baris}
-            hi={kolomHi}
-            render={(b) =>
-              b.sup.freight.aktif ? (
+              render={(b) => (
                 <span className="flex flex-col items-end">
-                  <span className="text-meta text-fg-subtle">
-                    {angka(b.sup.freight.pcsPerCBM)} pcs/CBM @ {rupiah(b.sup.freight.ratePerCBM)}
+                  <span className="font-semibold text-fg">{pcs(b.inv.qty)}</span>
+                  {/* `moq-keterangan`: disembunyikan khusus di laporan cetak
+                      (lihat globals.css) — keterangan MOQ berguna saat menyunting
+                      supplier di layar, tapi di laporan ringkas cuma menambah
+                      baris tanpa menambah keputusan yang bisa diambil dari
+                      kertas. */}
+                  <span className="moq-keterangan text-meta text-fg-subtle">
+                    {b.inv.moqMengikat ? (
+                      <span className="badge bg-warning-bg text-warning-fg">
+                        MOQ {pcs(b.sup.moq)} mengikat
+                      </span>
+                    ) : (
+                      <>MOQ {pcs(b.sup.moq)} - tidak mengikat</>
+                    )}
                   </span>
-                  <span>{rupiah(b.inv.freight)}</span>
                 </span>
-              ) : (
-                <span className="text-fg-subtle">nonaktif</span>
-              )
-            }
-          />
+              )}
+            />
 
-          <tr className="border-t border-border-strong">
-            <td className="td font-semibold text-fg">
-              Total investasi
-              <span className="ml-1 font-normal text-fg-subtle">(qty masing-masing)</span>
-            </td>
-            {baris.map((b) => (
-              <td
-                key={b.sup.id}
-                className={cx("td tabular text-right font-bold text-fg", kolomHi(b.sup.id))}
-                data-numeric
-              >
-                {rupiah(b.inv.total)}
-              </td>
-            ))}
-          </tr>
-          <tr>
-            <td className="td font-semibold text-fg">
-              Biaya {l.namaUnit} / unit
-              <span className="ml-1 font-normal text-fg-subtle">(termasuk freight)</span>
-            </td>
-            {baris.map((b) => (
-              <td
-                key={b.sup.id}
-                className={cx("td tabular text-right font-bold", kolomHi(b.sup.id))}
-                data-numeric
-              >
-                <span className={b.satuan.totalLengkap === unitTermurah ? "text-naik" : "text-fg"}>
-                  {rupiah(b.satuan.totalLengkap)}
+            <Baris
+              label={l.labelTerisi}
+              kolom={baris}
+              hi={kolomHi}
+              render={(b) => (
+                <span className="flex flex-col items-end">
+                  <span>{pcs(b.jadi)}</span>
+                  {b.jadi < b.inv.qty ? (
+                    <span className="text-meta text-fg-subtle">
+                      {pcs(b.inv.qty - b.jadi)} jadi stok
+                    </span>
+                  ) : null}
                 </span>
-                {b.satuan.totalLengkap === unitTermurah ? (
-                  <span className="badge ml-2 bg-success-bg text-success-fg">termurah</span>
-                ) : null}
+              )}
+            />
+
+            <BarisTumpuk
+              label="Molding (sekali bayar)"
+              kolom={baris}
+              hi={kolomHi}
+              item={(b) => [
+                [l.labelKomponenMolding[0], b.sup.molding.botol],
+                [l.labelKomponenMolding[1], b.sup.molding.cap],
+                [l.labelKomponenMolding[2], b.sup.molding.silikon],
+              ]}
+              total={(b) => totalMolding(b.sup, kurs)}
+              mataUang={(b) => b.sup.mataUang}
+              kurs={kurs}
+            />
+
+            <BarisTumpuk
+              label="Biaya variable / pcs"
+              kolom={baris}
+              hi={kolomHi}
+              item={(b) => [
+                [l.labelKomponenSatuan[0], b.sup.satuan.botol],
+                [l.labelKomponenSatuan[1], b.sup.satuan.cap],
+                [l.labelKomponenSatuan[2], b.sup.satuan.aksesoris],
+              ]}
+              total={(b) => b.satuan.botol + b.satuan.aksesoris}
+              labelTotal="Total /pcs"
+              ekstra={(b) => [`Total beli (${pcs(b.inv.qty)})`, b.inv.botol + b.inv.aksesoris]}
+              mataUang={(b) => b.sup.mataUang}
+              kurs={kurs}
+            />
+
+            {perizinanPct > 0 ? (
+              <Baris
+                label={`Perizinan ${persen(perizinanPct)} (total)`}
+                kolom={baris}
+                hi={kolomHi}
+                render={(b) => rupiah(b.inv.perizinan)}
+              />
+            ) : null}
+
+            <Baris
+              label="Freight Forwarder"
+              kolom={baris}
+              hi={kolomHi}
+              render={(b) =>
+                b.sup.freight.aktif ? (
+                  <span className="flex flex-col items-end">
+                    <span className="text-meta text-fg-subtle">
+                      {angka(b.sup.freight.pcsPerCBM)} pcs/CBM @ {rupiah(b.sup.freight.ratePerCBM)}
+                    </span>
+                    <span>{rupiah(b.inv.freight)}</span>
+                  </span>
+                ) : (
+                  <span className="text-fg-subtle">nonaktif</span>
+                )
+              }
+            />
+
+            <tr className="border-t border-border-strong">
+              <td className="td font-semibold text-fg">
+                Total investasi
+                <span className="ml-1 font-normal text-fg-subtle">(qty masing-masing)</span>
               </td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
-    </BungkusTabel>
+              {baris.map((b) => (
+                <td
+                  key={b.sup.id}
+                  className={cx("td tabular text-right font-bold text-fg", kolomHi(b.sup.id))}
+                  data-numeric
+                >
+                  {rupiah(b.inv.total)}
+                </td>
+              ))}
+            </tr>
+            <tr>
+              <td className="td font-semibold text-fg">
+                Biaya {l.namaUnit} / unit
+                <span className="ml-1 font-normal text-fg-subtle">(termasuk freight)</span>
+              </td>
+              {baris.map((b) => (
+                <td
+                  key={b.sup.id}
+                  className={cx("td tabular text-right font-bold", kolomHi(b.sup.id))}
+                  data-numeric
+                >
+                  <span className={b.satuan.totalLengkap === unitTermurah ? "text-naik" : "text-fg"}>
+                    {rupiah(b.satuan.totalLengkap)}
+                  </span>
+                  {b.satuan.totalLengkap === unitTermurah ? (
+                    <span className="badge ml-2 bg-success-bg text-success-fg">termurah</span>
+                  ) : null}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </BungkusTabel>
+
+      <LightboxFoto
+        daftar={semuaFoto}
+        indeks={fotoAktif}
+        onTutup={() => setFotoAktif(null)}
+        onNavigasi={(arah) =>
+          setFotoAktif((i) => (i === null ? null : (i + arah + semuaFoto.length) % semuaFoto.length))
+        }
+      />
+    </>
   );
 }
 

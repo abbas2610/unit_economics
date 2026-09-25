@@ -163,6 +163,18 @@ const supplierDari = (v: unknown, awalan: string, urut: number, kursBawaan: numb
   const satuan = objek(s.satuan ?? s.unit);
   const freight = objek(s.freight);
   const mataUang: MataUang = (s.mataUang ?? s.currency) === "USD" ? "USD" : "IDR";
+  /* Bentuk lama (v0, dan v1 sebelum fitur ini) tidak pernah punya `foto` —
+     dibiarkan TIDAK ADA sebagai kunci, bukan `foto: []`, supaya dokumen yang
+     belum pernah menyentuh foto tetap identik byte-demi-byte lewat
+     JSON.stringify dengan dokumen sebelum field ini ada.
+     `foto` sendiri sempat berbentuk satu string (sebelum "beberapa foto"
+     ditambah) — string tunggal dibungkus jadi array satu elemen supaya
+     dokumen yang sudah sempat menyimpannya tidak kehilangan fotonya. */
+  const foto: string[] = Array.isArray(s.foto)
+    ? s.foto.filter((f): f is string => typeof f === "string" && f.trim() !== "")
+    : typeof s.foto === "string" && s.foto.trim() !== ""
+      ? [s.foto]
+      : [];
   return {
     id: teks(s.id, awalan + urut),
     nama: teks(s.nama ?? s.name, "Supplier"),
@@ -183,6 +195,7 @@ const supplierDari = (v: unknown, awalan: string, urut: number, kursBawaan: numb
       pcsPerCBM: num(freight.pcsPerCBM, 1),
       ratePerCBM: num(freight.ratePerCBM, kursBawaan),
     },
+    ...(foto.length > 0 ? { foto } : {}),
   };
 };
 

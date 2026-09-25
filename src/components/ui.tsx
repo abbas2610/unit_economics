@@ -10,7 +10,7 @@
  * di `src/bersama/cx.ts`; aturan itu lahir dari kegagalan runtime yang lolos
  * build dan typecheck.
  */
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { cx } from "@/bersama/cx";
 import { arah, arahBiaya, delta, pcsDelta, persenDelta, poinDelta, type Arah } from "@/bersama/format";
 import { bacaAngka, tulisAngka } from "@/bersama/masukan";
@@ -349,6 +349,228 @@ export const TombolHapus = ({
     ×
   </button>
 );
+
+/* ══════════════════════════════════════════════════════════════ foto ══ */
+
+/**
+ * Baca berkas gambar dan kecilkan jadi thumbnail JPEG base64.
+ *
+ * Foto kamera bisa belasan MB. Disimpan mentah, angka itu ikut tiap autosave,
+ * tiap siaran realtime ke rekan tim, dan tiap salinan localStorage — untuk
+ * sesuatu yang cuma dipakai sebagai thumbnail kecil di kartu & tabel
+ * perbandingan. Sisi terpanjang dibatasi 480px, kualitas JPEG 0,75.
+ */
+async function kecilkanFoto(file: File): Promise<string> {
+  const asli = await new Promise<string>((resolve, reject) => {
+    const pembaca = new FileReader();
+    pembaca.onload = () => resolve(pembaca.result as string);
+    pembaca.onerror = () => reject(pembaca.error);
+    pembaca.readAsDataURL(file);
+  });
+
+  const gambar = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Gagal membaca gambar"));
+    img.src = asli;
+  });
+
+  const sisiMaks = 480;
+  const skala = Math.min(1, sisiMaks / Math.max(gambar.width, gambar.height));
+  const lebar = Math.round(gambar.width * skala);
+  const tinggi = Math.round(gambar.height * skala);
+
+  const kanvas = document.createElement("canvas");
+  kanvas.width = lebar;
+  kanvas.height = tinggi;
+  const ctx = kanvas.getContext("2d");
+  if (!ctx) return asli;
+  ctx.drawImage(gambar, 0, 0, lebar, tinggi);
+  return kanvas.toDataURL("image/jpeg", 0.75);
+}
+
+/**
+ * Upload foto produk — bisa lebih dari satu. Strip thumbnail, tiap foto punya
+ * tombol hapus sendiri di pojoknya, plus satu kotak "+ Foto" di akhir strip
+ * untuk menambah.
+ *
+ * `onUbah` selalu menerima array LENGKAP (bukan diff) — pemanggil (lihat
+ * `KartuSupplier`) yang memutuskan menghilangkan kunci `foto` sama sekali
+ * dari `Supplier` begitu array-nya kosong, bukan menyisakan `foto: []`.
+ */
+export function UnggahFoto({
+  foto = [],
+  onUbah,
+  ariaLabel,
+}: {
+  foto?: string[];
+  onUbah: (foto: string[]) => void;
+  ariaLabel: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [memuat, setMemuat] = useState(false);
+
+  const tambah = async (files: FileList | null) => {
+    const gambar = Array.from(files ?? []).filter((f) => f.type.startsWith("image/"));
+    if (gambar.length === 0) return;
+    setMemuat(true);
+    try {
+      const baru = await Promise.all(gambar.map(kecilkanFoto));
+      onUbah([...foto, ...baru]);
+    } finally {
+      setMemuat(false);
+    }
+  };
+
+  const hapus = (i: number) => onUbah(foto.filter((_, idx) => idx !== i));
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {foto.map((f, i) => (
+        <span key={i} className="relative">
+          {/* eslint-disable-next-line @next/next/no-img-element -- data URL lokal, bukan aset yang perlu dioptimalkan Next */}
+          <img src={f} alt="" className="h-14 w-14 rounded-md border border-border object-cover" />
+          <button
+            type="button"
+            onClick={() => hapus(i)}
+            aria-label={`Hapus foto ${i + 1}`}
+            className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-border bg-surface text-badge leading-none text-fg-subtle hover:border-danger-fg hover:bg-danger-bg hover:text-danger-fg"
+          >
+            ×
+          </button>
+        </span>
+      ))}
+
+      <button
+        type="button"
+        onClick={() => ref.current?.click()}
+        aria-label={`Tambah ${ariaLabel}`}
+        className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border border-dashed border-border-strong bg-surface-muted text-meta font-semibold text-fg-subtle hover:border-primary hover:text-primary"
+      >
+        {memuat ? "…" : "+ Foto"}
+      </button>
+      <input
+        ref={ref}
+        type="file"
+        accept="image/*"
+        multiple
+        aria-label={ariaLabel}
+        className="hidden"
+        onChange={(e) => {
+          void tambah(e.target.files);
+          e.target.value = "";
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * Lightbox foto — expand ke layar penuh, dengan panah kiri/kanan menswitch
+ * antar foto dalam `daftar` yang sama (mis. seluruh supplier di satu tabel
+ * perbandingan yang punya foto).
+ *
+ * `daftar` cuma berisi entri yang PUNYA foto — pemanggil yang menyaringnya
+ * sebelum dikirim ke sini, supaya panah kiri/kanan tidak pernah berhenti di
+ * slot kosong.
+ */
+export function LightboxFoto({
+  daftar,
+  indeks,
+  onTutup,
+  onNavigasi,
+}: {
+  daftar: ReadonlyArray<{ id: string; nama: string; foto: string }>;
+  indeks: number | null;
+  onTutup: () => void;
+  onNavigasi: (arah: -1 | 1) => void;
+}) {
+  useEffect(() => {
+    if (indeks === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onTutup();
+      else if (e.key === "ArrowLeft") onNavigasi(-1);
+      else if (e.key === "ArrowRight") onNavigasi(1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [indeks, onTutup, onNavigasi]);
+
+  if (indeks === null) return null;
+  const item = daftar[indeks];
+  if (!item) return null;
+  const banyak = daftar.length;
+
+  const tombolPanah =
+    "absolute top-1/2 flex h-control w-control -translate-y-1/2 items-center justify-center " +
+    "rounded-full border border-scrim-fg/30 text-body text-scrim-fg hover:bg-scrim-fg/10";
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Foto ${item.nama}`}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/90 p-6"
+      onClick={onTutup}
+    >
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onTutup();
+        }}
+        aria-label="Tutup"
+        className="absolute right-5 top-5 flex h-control w-control items-center justify-center rounded-md border border-scrim-fg/30 text-scrim-fg hover:bg-scrim-fg/10"
+      >
+        ×
+      </button>
+
+      {banyak > 1 ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onNavigasi(-1);
+          }}
+          aria-label="Foto sebelumnya"
+          className={cx(tombolPanah, "left-5")}
+        >
+          ‹
+        </button>
+      ) : null}
+
+      <figure
+        className="flex max-h-full max-w-full flex-col items-center gap-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element -- data URL lokal, bukan aset yang perlu dioptimalkan Next */}
+        <img src={item.foto} alt="" className="max-h-[70vh] max-w-full rounded-md object-contain" />
+        <figcaption className="text-body font-semibold text-scrim-fg">
+          {item.nama}
+          {banyak > 1 ? (
+            <span className="ml-2 text-meta font-normal text-scrim-fg/70">
+              {indeks + 1} / {banyak}
+            </span>
+          ) : null}
+        </figcaption>
+      </figure>
+
+      {banyak > 1 ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onNavigasi(1);
+          }}
+          aria-label="Foto berikutnya"
+          className={cx(tombolPanah, "right-5")}
+        >
+          ›
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 /* ══════════════════════════════════════════════════════════════ angka ══ */
 
