@@ -21,9 +21,10 @@
  * salinan lagi yang bisa diam-diam berbeda - persis alasan kecil/besar sudah
  * satu komponen.
  */
-import { useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { angka, pcs, persen, rupiah, usd } from "@/bersama/format";
 import { cx } from "@/bersama/cx";
+import { pindahkan } from "@/bersama/urutan";
 import type { UkuranBotol } from "@/contexts/asumsi/domain/asumsi";
 import { pcsPerCBM } from "@/contexts/asumsi/domain/kemasan";
 import {
@@ -69,6 +70,9 @@ const LABEL: Record<
     namaPakai: string;
     /** Dipakai baris "Biaya … / unit" di tabel perbandingan. */
     namaUnit: string;
+    /** Chip jenis di kepala kartu — supaya kartu yang tertutup tetap ketahuan
+     *  botol atau packaging walau digulir jauh dari judul bagiannya. */
+    chip: string;
     molding: [string, string, string];
     satuan: [string, string, string];
     labelKomponenMolding: [string, string, string];
@@ -80,6 +84,7 @@ const LABEL: Record<
   botol: {
     namaPakai: "supplier",
     namaUnit: "botol",
+    chip: "Botol",
     molding: ["Molding botol", "Molding cap / tutup", "Molding silikon / aksesoris"],
     satuan: ["Harga botol / pcs", "Harga cap / pcs", "Aksesoris / pcs"],
     labelKomponenMolding: ["Botol", "Cap", "Silikon"],
@@ -90,6 +95,7 @@ const LABEL: Record<
   packaging: {
     namaPakai: "packaging",
     namaUnit: "packaging",
+    chip: "Packaging",
     molding: ["Molding box", "Molding tutup box", "Molding aksesoris box"],
     satuan: ["Harga box / pcs", "Harga tutup box / pcs", "Aksesoris box / pcs"],
     labelKomponenMolding: ["Box", "Tutup", "Aksesoris"],
@@ -136,7 +142,12 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
   const setSupplier = (id: string, fn: (s: Supplier) => Supplier) =>
     setDaftar((list) => list.map((s) => (s.id === id ? fn(s) : s)));
 
-  const tambah = () =>
+  /* Mengembalikan id yang DIHARAPKAN supaya kartunya bisa langsung dibuka.
+     Id yang sungguh dipakai tetap dihitung dari `d` terbaru di dalam updater -
+     kalau siaran tim menyelip di antaranya, kartu baru cuma mulai tertutup,
+     bukan berbagi id dengan supplier lain. */
+  const tambah = (): string => {
+    const diharapkan = (kecil ? "s" : "l") + idBerikutnya(dok);
     ubah((d) => {
       const id = (kecil ? "s" : "l") + idBerikutnya(d);
       const baru: Supplier = {
@@ -156,6 +167,13 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
         ? { ...d, supplierKecil: [...d.supplierKecil, baru] }
         : { ...d, supplierBesar: [...d.supplierBesar, baru] };
     });
+    return diharapkan;
+  };
+
+  /* Urutan DISIMPAN di dokumen (urutan larik), bukan cuma di layar: tim
+     melihat urutan yang sama, dan kolom tabel perbandingan ikut urutannya.
+     Tidak menggeser angka apa pun - pilihan supplier menunjuk id, bukan posisi. */
+  const urut = (id: string, ke: number) => setDaftar((list) => pindahkan(list, id, ke));
 
   const hapus = (id: string) => {
     if (daftar.length <= 1) {
@@ -197,7 +215,8 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
   const setPackaging = (id: string, fn: (s: Supplier) => Supplier) =>
     setDaftarPackaging((list) => list.map((s) => (s.id === id ? fn(s) : s)));
 
-  const tambahPackaging = () =>
+  const tambahPackaging = (): string => {
+    const diharapkan = (kecil ? "pk" : "pb") + idBerikutnya(dok);
     ubah((d) => {
       const id = (kecil ? "pk" : "pb") + idBerikutnya(d);
       const baru: Supplier = {
@@ -217,6 +236,11 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
         ? { ...d, packagingKecil: [...d.packagingKecil, baru] }
         : { ...d, packagingBesar: [...d.packagingBesar, baru] };
     });
+    return diharapkan;
+  };
+
+  const urutPackaging = (id: string, ke: number) =>
+    setDaftarPackaging((list) => pindahkan(list, id, ke));
 
   const hapusPackaging = (id: string) => {
     if (daftarPackaging.length <= 1) {
@@ -302,124 +326,328 @@ export function HalamanSupplier({ ukuran }: { ukuran: UkuranBotol }) {
         </Kartu>
       </div>
 
-      <div className="flex flex-col gap-3" data-seksi="supplier">
-        {daftar.map((sup) => (
+      <SeksiVendor
+        jenis="botol"
+        seksi="supplier"
+        huruf="A"
+        judul="Supplier Botol"
+        sub={`Botol ${label.replace(/^Botol (Kecil|Besar) - /, "")} + cap & aksesoris. Qty-nya mengikuti yang DIPESAN (${pcs(diminta)}).`}
+        daftar={daftar}
+        terpilihId={terpilihId}
+        diminta={diminta}
+        kapasitas={kapasitas}
+        kurs={dok.asumsi.kurs}
+        perizinanPct={dok.asumsi.perizinanPct}
+        judulBanding={`Perbandingan Supplier - ${label}`}
+        subBanding={`Kolom bertanda adalah supplier yang sedang dipakai Initial Investment. Semua kolom dihitung untuk ${pcs(diminta)} yang dipesan; supplier ber-MOQ lebih tinggi memaksa membeli lebih banyak, dan itu ditandai.`}
+        labelTambah={`+ Tambah supplier ${kecil ? "botol kecil" : "botol besar"}`}
+        onPakai={(sup) => {
+          pakaiSupplier(sup.id);
+          beriKabar(`${sup.nama} dipakai Initial Investment & Unit Economics`);
+        }}
+        onUbah={setSupplier}
+        onHapus={hapus}
+        onResetFreight={(id) => {
+          setSupplier(id, (s) => ({
+            ...s,
+            freight: {
+              ...s.freight,
+              pcsPerCBM: Math.round(pcsPerCBM(dimensi, dok.asumsi.packingEfficiency)) || 1,
+              ratePerCBM: dok.asumsi.freightPerCBM,
+            },
+          }));
+          beriKabar("Freight direset ke default asumsi dasar");
+        }}
+        onTambah={tambah}
+        onUrut={urut}
+      />
+
+      <div className="mt-6">
+        <SeksiVendor
+          jenis="packaging"
+          seksi="packaging"
+          huruf="B"
+          judul="Supplier Packaging (Box)"
+          sub={`Box + aksesoris box - vendor sendiri, terpisah dari supplier botol. Qty-nya mengikuti botol yang JADI (${pcs(produksi)}), bukan yang dipesan: box baru dibutuhkan begitu botolnya benar-benar terisi.`}
+          daftar={daftarPackaging}
+          terpilihId={terpilihPackagingId}
+          diminta={produksi}
+          kapasitas={produksi}
+          kurs={dok.asumsi.kurs}
+          perizinanPct={0}
+          judulBanding={`Perbandingan Packaging - ${label}`}
+          subBanding={`Kolom bertanda adalah vendor yang sedang dipakai Initial Investment & Unit Economics. Semua kolom dihitung untuk ${pcs(produksi)} botol yang jadi.`}
+          labelTambah={`+ Tambah packaging ${kecil ? "botol kecil" : "botol besar"}`}
+          onPakai={(sup) => {
+            pakaiPackaging(sup.id);
+            beriKabar(`${sup.nama} dipakai Initial Investment & Unit Economics`);
+          }}
+          onUbah={setPackaging}
+          onHapus={hapusPackaging}
+          onResetFreight={(id) => {
+            setPackaging(id, (s) => ({
+              ...s,
+              freight: {
+                ...s.freight,
+                pcsPerCBM: Math.round(pcsPerCBM(dimensi, dok.asumsi.packingEfficiency)) || 1,
+                ratePerCBM: dok.asumsi.freightPerCBM,
+              },
+            }));
+            beriKabar("Freight direset ke default asumsi dasar");
+          }}
+          onTambah={tambahPackaging}
+          onUrut={urutPackaging}
+        />
+      </div>
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════ seksi ══ */
+
+/**
+ * Satu bagian vendor: kepala bagian, tabel perbandingan PALING ATAS, lalu
+ * kartu per vendor yang bisa dibuka/tutup dan diurutkan dengan seret.
+ *
+ * Tabel naik ke atas karena itu yang dibaca di rapat; kartunya cuma tempat
+ * mengisi angka, dan dulu tiga-empat kartu terbuka mendorong tabelnya ke
+ * bawah satu layar penuh.
+ *
+ * ## Buka/tutup TIDAK disimpan di dokumen, urutan IYA
+ *
+ * Dokumen ini dibagi seluruh tim lewat realtime. Kalau kartu yang terbuka
+ * ikut tersimpan, satu orang menutup kartu = kartu tertutup di layar semua
+ * orang, di tengah mereka mengetik. Urutan sebaliknya memang keputusan
+ * bersama, dan kolom tabel perbandingan mengikutinya.
+ */
+function SeksiVendor({
+  jenis,
+  seksi,
+  huruf,
+  judul,
+  sub,
+  daftar,
+  terpilihId,
+  diminta,
+  kapasitas,
+  kurs,
+  perizinanPct,
+  judulBanding,
+  subBanding,
+  labelTambah,
+  onPakai,
+  onUbah,
+  onHapus,
+  onResetFreight,
+  onTambah,
+  onUrut,
+}: {
+  jenis: Jenis;
+  /** Nilai `data-seksi` daftar kartu — dipakai probe layar sebagai pegangan. */
+  seksi: string;
+  huruf: string;
+  judul: string;
+  sub: ReactNode;
+  daftar: Supplier[];
+  terpilihId: string;
+  diminta: number;
+  kapasitas: number;
+  kurs: number;
+  perizinanPct: number;
+  judulBanding: string;
+  subBanding: string;
+  labelTambah: string;
+  onPakai: (sup: Supplier) => void;
+  onUbah: (id: string, fn: (s: Supplier) => Supplier) => void;
+  onHapus: (id: string) => void;
+  onResetFreight: (id: string) => void;
+  onTambah: () => string;
+  onUrut: (id: string, ke: number) => void;
+}) {
+  const l = LABEL[jenis];
+  const idJudul = useId();
+  const [terbuka, setTerbuka] = useState<ReadonlySet<string>>(() => new Set());
+  const [seret, setSeret] = useState<{ id: string; ke: number } | null>(null);
+  const wadah = useRef<HTMLDivElement>(null);
+  const keTerakhir = useRef(0);
+  const lepasSeret = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    const ref = lepasSeret;
+    return () => ref.current?.();
+  }, []);
+
+  /* Selama diseret, daftar dirender dalam urutan PRATINJAU - kartunya
+     berpindah tempat mengikuti pointer, jadi yang terlihat persis yang akan
+     tersimpan. Dokumen baru disentuh saat dilepas. */
+  const tampil = seret ? pindahkan(daftar, seret.id, seret.ke) : daftar;
+  const terpilih = daftar.find((s) => s.id === terpilihId);
+  const semuaTerbuka = daftar.length > 0 && daftar.every((s) => terbuka.has(s.id));
+
+  const alih = (id: string) =>
+    setTerbuka((lama) => {
+      const baru = new Set(lama);
+      if (baru.has(id)) baru.delete(id);
+      else baru.add(id);
+      return baru;
+    });
+
+  const tambah = () => {
+    const id = onTambah();
+    setTerbuka((lama) => new Set(lama).add(id));
+  };
+
+  /** Indeks tujuan = jumlah kartu LAIN yang titik tengahnya di atas pointer. */
+  const posisiDari = (id: string, y: number) => {
+    const el = wadah.current;
+    if (!el) return 0;
+    return [...el.querySelectorAll<HTMLElement>(":scope > [data-urut-id]")]
+      .filter((k) => k.dataset.urutId !== id)
+      .filter((k) => {
+        const r = k.getBoundingClientRect();
+        return r.top + r.height / 2 < y;
+      }).length;
+  };
+
+  /* Pendengar dipasang di `window`, bukan pointer capture di pegangannya:
+     React memindahkan node kartu di DOM saat urutan pratinjau berubah, dan
+     elemen yang dipindah kehilangan capture-nya di tengah seret. */
+  const mulaiSeret = (id: string, e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const awal = daftar.findIndex((s) => s.id === id);
+    keTerakhir.current = awal;
+    setSeret({ id, ke: awal });
+
+    function gerak(ev: PointerEvent) {
+      const ke = posisiDari(id, ev.clientY);
+      if (ke === keTerakhir.current) return;
+      keTerakhir.current = ke;
+      setSeret({ id, ke });
+    }
+    function lepas() {
+      window.removeEventListener("pointermove", gerak);
+      window.removeEventListener("pointerup", selesai);
+      window.removeEventListener("pointercancel", batal);
+      lepasSeret.current = null;
+    }
+    function selesai() {
+      lepas();
+      setSeret(null);
+      if (keTerakhir.current !== awal) onUrut(id, keTerakhir.current);
+    }
+    function batal() {
+      lepas();
+      setSeret(null);
+    }
+    window.addEventListener("pointermove", gerak);
+    window.addEventListener("pointerup", selesai);
+    window.addEventListener("pointercancel", batal);
+    lepasSeret.current = lepas;
+  };
+
+  /** Jalur keyboard untuk hal yang sama - seret saja tidak bisa dipakai tanpa mouse. */
+  const geserKeyboard = (id: string, e: React.KeyboardEvent<HTMLButtonElement>) => {
+    const i = daftar.findIndex((s) => s.id === id);
+    const ke = e.key === "ArrowUp" ? i - 1 : e.key === "ArrowDown" ? i + 1 : null;
+    if (ke === null) return;
+    e.preventDefault();
+    if (ke < 0 || ke >= daftar.length) return;
+    onUrut(id, ke);
+  };
+
+  return (
+    <section
+      aria-labelledby={idJudul}
+      className="rounded-lg border border-border bg-surface-muted p-4"
+    >
+      <div className="mb-4 flex items-start gap-3">
+        <span
+          aria-hidden
+          className="flex h-control w-control shrink-0 items-center justify-center rounded-md border border-border bg-surface text-primary"
+        >
+          {jenis === "botol" ? <IkonBotol /> : <IkonBox />}
+        </span>
+        <div className="min-w-0">
+          <p className="text-label uppercase text-primary">Bagian {huruf}</p>
+          <h2 id={idJudul} className="text-card-title text-fg">
+            {judul}
+          </h2>
+          <p className="mt-1 max-w-[80ch] text-meta text-fg-subtle">{sub}</p>
+          <p className="mt-1 text-meta text-fg-muted">
+            {daftar.length} vendor
+            {terpilih ? (
+              <>
+                {" "}
+                · dipakai: <strong className="text-fg">{terpilih.nama}</strong>
+              </>
+            ) : null}
+          </p>
+        </div>
+      </div>
+
+      <Kartu>
+        <JudulBlok judul={judulBanding} sub={subBanding} />
+        <TabelBanding
+          jenis={jenis}
+          daftar={daftar}
+          terpilihId={terpilihId}
+          diminta={diminta}
+          kapasitas={kapasitas}
+          kurs={kurs}
+          perizinanPct={perizinanPct}
+        />
+      </Kartu>
+
+      <div className="mb-2 mt-5 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-label uppercase text-fg-muted">
+          Detail per {l.namaPakai}
+          <span className="ml-2 font-normal normal-case tracking-normal text-fg-subtle">
+            klik untuk buka/tutup · seret pegangan di kanan untuk mengurutkan
+          </span>
+        </p>
+        {daftar.length > 1 ? (
+          <button
+            type="button"
+            onClick={() => setTerbuka(semuaTerbuka ? new Set() : new Set(daftar.map((s) => s.id)))}
+            className="text-meta font-semibold text-primary hover:text-primary-hover"
+          >
+            {semuaTerbuka ? "Tutup semua" : "Buka semua"}
+          </button>
+        ) : null}
+      </div>
+
+      <div ref={wadah} className="flex flex-col gap-2" data-seksi={seksi}>
+        {tampil.map((sup, i) => (
           <KartuSupplier
             key={sup.id}
-            jenis="botol"
+            jenis={jenis}
             sup={sup}
             terpilih={sup.id === terpilihId}
             diminta={diminta}
-            kurs={dok.asumsi.kurs}
-            perizinanPct={dok.asumsi.perizinanPct}
-            onPakai={() => {
-              pakaiSupplier(sup.id);
-              beriKabar(`${sup.nama} dipakai Initial Investment & Unit Economics`);
-            }}
-            onUbah={(fn) => setSupplier(sup.id, fn)}
-            onHapus={() => hapus(sup.id)}
-            onResetFreight={() => {
-              setSupplier(sup.id, (s) => ({
-                ...s,
-                freight: {
-                  ...s.freight,
-                  pcsPerCBM: Math.round(pcsPerCBM(dimensi, dok.asumsi.packingEfficiency)) || 1,
-                  ratePerCBM: dok.asumsi.freightPerCBM,
-                },
-              }));
-              beriKabar("Freight direset ke default asumsi dasar");
-            }}
+            kurs={kurs}
+            perizinanPct={perizinanPct}
+            terbuka={terbuka.has(sup.id)}
+            diseret={seret?.id === sup.id}
+            posisi={i + 1}
+            total={tampil.length}
+            onAlih={() => alih(sup.id)}
+            onPeganganDown={(e) => mulaiSeret(sup.id, e)}
+            onPeganganKey={(e) => geserKeyboard(sup.id, e)}
+            onPakai={() => onPakai(sup)}
+            onUbah={(fn) => onUbah(sup.id, fn)}
+            onHapus={() => onHapus(sup.id)}
+            onResetFreight={() => onResetFreight(sup.id)}
           />
         ))}
       </div>
 
       <div className="mt-3">
         <Tombol jenis="garis" onClick={tambah}>
-          + Tambah supplier {kecil ? "botol kecil" : "botol besar"}
+          {labelTambah}
         </Tombol>
       </div>
-
-      <div className="mt-6">
-        <Kartu>
-          <JudulBlok
-            judul={`Perbandingan Supplier - ${label}`}
-            sub={`Kolom bertanda adalah supplier yang sedang dipakai Initial Investment. Semua kolom dihitung untuk ${pcs(diminta)} yang dipesan; supplier ber-MOQ lebih tinggi memaksa membeli lebih banyak, dan itu ditandai.`}
-          />
-          <TabelBanding
-            jenis="botol"
-            daftar={daftar}
-            terpilihId={terpilihId}
-            diminta={diminta}
-            kapasitas={kapasitas}
-            kurs={dok.asumsi.kurs}
-            perizinanPct={dok.asumsi.perizinanPct}
-          />
-        </Kartu>
-      </div>
-
-      {/* ═══════════════════════════════════════════════════ packaging ══ */}
-      <div className="mt-8">
-        <JudulBlok
-          judul={`Packaging - ${label}`}
-          sub="Box + aksesoris box. Vendor sendiri, bentuknya sama dengan supplier botol - molding (fixed, sekali bayar) dan harga per pcs (variable) terpisah. Qty-nya mengikuti botol yang JADI, bukan yang dipesan ke supplier botol: box baru dibutuhkan begitu botolnya benar-benar terisi."
-        />
-
-        <div className="mt-3 flex flex-col gap-3" data-seksi="packaging">
-          {daftarPackaging.map((sup) => (
-            <KartuSupplier
-              key={sup.id}
-              jenis="packaging"
-              sup={sup}
-              terpilih={sup.id === terpilihPackagingId}
-              diminta={produksi}
-              kurs={dok.asumsi.kurs}
-              perizinanPct={0}
-              onPakai={() => {
-                pakaiPackaging(sup.id);
-                beriKabar(`${sup.nama} dipakai Initial Investment & Unit Economics`);
-              }}
-              onUbah={(fn) => setPackaging(sup.id, fn)}
-              onHapus={() => hapusPackaging(sup.id)}
-              onResetFreight={() => {
-                setPackaging(sup.id, (s) => ({
-                  ...s,
-                  freight: {
-                    ...s.freight,
-                    pcsPerCBM: Math.round(pcsPerCBM(dimensi, dok.asumsi.packingEfficiency)) || 1,
-                    ratePerCBM: dok.asumsi.freightPerCBM,
-                  },
-                }));
-                beriKabar("Freight direset ke default asumsi dasar");
-              }}
-            />
-          ))}
-        </div>
-
-        <div className="mt-3">
-          <Tombol jenis="garis" onClick={tambahPackaging}>
-            + Tambah packaging {kecil ? "botol kecil" : "botol besar"}
-          </Tombol>
-        </div>
-
-        <div className="mt-6">
-          <Kartu>
-            <JudulBlok
-              judul={`Perbandingan Packaging - ${label}`}
-              sub={`Kolom bertanda adalah vendor yang sedang dipakai Initial Investment & Unit Economics. Semua kolom dihitung untuk ${pcs(produksi)} botol yang jadi.`}
-            />
-            <TabelBanding
-              jenis="packaging"
-              daftar={daftarPackaging}
-              terpilihId={terpilihPackagingId}
-              diminta={produksi}
-              kapasitas={produksi}
-              kurs={dok.asumsi.kurs}
-              perizinanPct={0}
-            />
-          </Kartu>
-        </div>
-      </div>
-    </>
+    </section>
   );
 }
 
@@ -432,6 +660,13 @@ function KartuSupplier({
   diminta,
   kurs,
   perizinanPct,
+  terbuka,
+  diseret,
+  posisi,
+  total,
+  onAlih,
+  onPeganganDown,
+  onPeganganKey,
   onPakai,
   onUbah,
   onHapus,
@@ -443,12 +678,20 @@ function KartuSupplier({
   diminta: number;
   kurs: number;
   perizinanPct: number;
+  terbuka: boolean;
+  diseret: boolean;
+  posisi: number;
+  total: number;
+  onAlih: () => void;
+  onPeganganDown: (e: React.PointerEvent<HTMLButtonElement>) => void;
+  onPeganganKey: (e: React.KeyboardEvent<HTMLButtonElement>) => void;
   onPakai: () => void;
   onUbah: (fn: (s: Supplier) => Supplier) => void;
   onHapus: () => void;
   onResetFreight: () => void;
 }) {
   const l = LABEL[jenis];
+  const idBadan = useId();
   const simbol = sup.mataUang === "USD" ? "$" : "Rp";
   const inv = investasiSupplier(sup, kurs, perizinanPct, diminta);
   const cbm = sup.freight.pcsPerCBM > 0 ? inv.qty / sup.freight.pcsPerCBM : 0;
@@ -466,185 +709,322 @@ function KartuSupplier({
 
   return (
     <section
+      data-urut-id={sup.id}
       className={cx(
-        "card p-5",
+        "card",
         terpilih && "border-primary bg-primary-subtle/40",
+        diseret && "relative z-10 opacity-80 ring-2 ring-primary",
       )}
     >
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <span className="min-w-[180px] flex-1">
-          <IsianTeks
-            nilai={sup.nama}
-            ariaLabel={`Nama ${l.namaPakai}`}
-            onUbah={(s) => onUbah((x) => ({ ...x, nama: s }))}
-          />
-        </span>
-        <Segmen<MataUang>
-          label={`Mata uang ${sup.nama}`}
-          nilai={sup.mataUang}
-          pilihan={[
-            { nilai: "IDR", label: "IDR" },
-            { nilai: "USD", label: "USD $" },
-          ]}
-          onUbah={(m) => onUbah((x) => ({ ...x, mataUang: m }))}
-        />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+        <button
+          type="button"
+          onClick={onAlih}
+          aria-expanded={terbuka}
+          aria-controls={idBadan}
+          aria-label={`Detail ${sup.nama}`}
+          className="group flex min-w-[220px] flex-1 items-center gap-3 text-left"
+        >
+          <IkonPanah terbuka={terbuka} />
+          {sup.foto?.[0] ? (
+            // eslint-disable-next-line @next/next/no-img-element -- data URL lokal, bukan aset yang perlu dioptimalkan Next
+            <img
+              src={sup.foto[0]}
+              alt=""
+              className="h-8 w-8 shrink-0 rounded-sm border border-border object-cover"
+            />
+          ) : null}
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2">
+              <span className="truncate text-card-title text-fg group-hover:text-primary">
+                {sup.nama}
+              </span>
+              <span className="badge shrink-0 bg-neutral-bg text-neutral-fg">{l.chip}</span>
+            </span>
+            <span className="tabular mt-0.5 block truncate text-meta text-fg-subtle">
+              {sup.mataUang} · {rupiah(inv.satuan.totalLengkap)} / {l.namaUnit} · total{" "}
+              {rupiah(inv.total)}
+            </span>
+          </span>
+        </button>
         {/* Sebelum ini hanya ada badge pasif, dan satu-satunya pemilih supplier
             ada di tab 4 - jadi menambah supplier di sini tidak pernah mengubah
             satu angka pun di Initial Investment maupun Unit Economics, tanpa
-            satu pun tanda bahwa pilihannya belum berpindah. */}
+            satu pun tanda bahwa pilihannya belum berpindah. Tetap di kepala
+            kartu, jadi bisa dipakai tanpa membuka detailnya. */}
         {terpilih ? (
           <span className="badge bg-primary-subtle text-primary">dipakai</span>
         ) : (
           <Tombol onClick={onPakai}>Pakai {l.namaPakai} ini</Tombol>
         )}
         <TombolHapus label={`Hapus ${sup.nama}`} onClick={onHapus} />
+        <button
+          type="button"
+          onPointerDown={onPeganganDown}
+          onKeyDown={onPeganganKey}
+          aria-label={`Urutkan ${sup.nama}, posisi ${posisi} dari ${total}. Seret, atau tekan panah atas/bawah.`}
+          title="Seret untuk mengurutkan (atau panah atas/bawah)"
+          className="flex h-control-sm w-control-sm shrink-0 cursor-grab touch-none items-center justify-center rounded-sm border border-border text-fg-subtle transition-colors hover:border-border-strong hover:text-fg active:cursor-grabbing"
+        >
+          <IkonPegangan />
+        </button>
       </div>
 
-      <div className="mb-5">
-        <Bidang label="Foto produk" petunjuk="(opsional, bisa lebih dari satu, tampil di tabel perbandingan)">
-          <UnggahFoto foto={sup.foto} onUbah={setFoto} ariaLabel={`foto ${sup.nama}`} />
-        </Bidang>
-      </div>
-
-      <p className="mb-2 text-label uppercase text-fg-muted">
-        Fixed cost - molding (sekali bayar)
-      </p>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Bidang label={l.molding[0]}>
-          <IsianAngka
-            nilai={sup.molding.botol}
-            awalan={simbol}
-            ariaLabel={l.molding[0]}
-            onUbah={(n) => onUbah((x) => ({ ...x, molding: { ...x.molding, botol: n } }))}
-          />
-        </Bidang>
-        <Bidang label={l.molding[1]}>
-          <IsianAngka
-            nilai={sup.molding.cap}
-            awalan={simbol}
-            ariaLabel={l.molding[1]}
-            onUbah={(n) => onUbah((x) => ({ ...x, molding: { ...x.molding, cap: n } }))}
-          />
-        </Bidang>
-        <Bidang label={l.molding[2]}>
-          <IsianAngka
-            nilai={sup.molding.silikon}
-            awalan={simbol}
-            ariaLabel={l.molding[2]}
-            onUbah={(n) => onUbah((x) => ({ ...x, molding: { ...x.molding, silikon: n } }))}
-          />
-        </Bidang>
-      </div>
-
-      <p className="mb-2 mt-5 text-label uppercase text-fg-muted">Variable cost - per unit</p>
-      <div className="grid gap-3 sm:grid-cols-4">
-        <Bidang label={l.satuan[0]}>
-          <IsianAngka
-            nilai={sup.satuan.botol}
-            digit={2}
-            awalan={simbol}
-            ariaLabel={l.satuan[0]}
-            onUbah={(n) => onUbah((x) => ({ ...x, satuan: { ...x.satuan, botol: n } }))}
-          />
-        </Bidang>
-        <Bidang label={l.satuan[1]}>
-          <IsianAngka
-            nilai={sup.satuan.cap}
-            digit={2}
-            awalan={simbol}
-            ariaLabel={l.satuan[1]}
-            onUbah={(n) => onUbah((x) => ({ ...x, satuan: { ...x.satuan, cap: n } }))}
-          />
-        </Bidang>
-        <Bidang label={l.satuan[2]}>
-          <IsianAngka
-            nilai={sup.satuan.aksesoris}
-            digit={2}
-            awalan={simbol}
-            ariaLabel={l.satuan[2]}
-            onUbah={(n) => onUbah((x) => ({ ...x, satuan: { ...x.satuan, aksesoris: n } }))}
-          />
-        </Bidang>
-        <Bidang label="Minimum order qty">
-          <IsianAngka
-            nilai={sup.moq}
-            akhiran="pcs"
-            ariaLabel="Minimum order quantity"
-            onUbah={(n) => onUbah((x) => ({ ...x, moq: n }))}
-          />
-        </Bidang>
-      </div>
-
-      <div className="mt-5 rounded-md border border-border bg-surface-muted p-3.5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <Sakelar
-            nyala={sup.freight.aktif}
-            label="Freight Forwarder"
-            onUbah={(n) => onUbah((x) => ({ ...x, freight: { ...x.freight, aktif: n } }))}
-          />
-          <button
-            type="button"
-            onClick={onResetFreight}
-            className="text-meta font-semibold text-primary hover:text-primary-hover"
-          >
-            ↺ pakai default asumsi dasar
-          </button>
-        </div>
-
-        {sup.freight.aktif ? (
-          <>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Bidang label="Pcs per CBM">
-                <IsianAngka
-                  nilai={sup.freight.pcsPerCBM}
-                  akhiran="pcs"
-                  ariaLabel="Pcs per CBM"
-                  onUbah={(n) =>
-                    onUbah((x) => ({ ...x, freight: { ...x.freight, pcsPerCBM: n } }))
-                  }
+      {terbuka ? (
+        <div id={idBadan} className="border-t border-border px-5 pb-5 pt-4">
+          <div className="mb-5 flex flex-wrap items-end gap-3">
+            <span className="min-w-[200px] flex-1">
+              <Bidang label={`Nama ${l.namaPakai}`}>
+                <IsianTeks
+                  nilai={sup.nama}
+                  ariaLabel={`Nama ${l.namaPakai}`}
+                  onUbah={(s) => onUbah((x) => ({ ...x, nama: s }))}
                 />
               </Bidang>
-              <Bidang label="Rate per CBM">
-                <IsianAngka
-                  nilai={sup.freight.ratePerCBM}
-                  awalan="Rp"
-                  ariaLabel="Rate per CBM"
-                  onUbah={(n) =>
-                    onUbah((x) => ({ ...x, freight: { ...x.freight, ratePerCBM: n } }))
-                  }
-                />
-              </Bidang>
-              <Bidang label="Freight / botol (hasil)">
-                <span className="flex h-control items-center px-0.5">
-                  <span className="tabular text-body font-bold text-primary">
-                    {rupiah(freightPerBotol(sup))}
-                  </span>
-                </span>
-              </Bidang>
+            </span>
+            {/* Bukan <Bidang>: Bidang adalah <label>, dan mengklik teks label
+                mengaktifkan kontrol PERTAMA di dalamnya - tombol "IDR". Satu klik
+                di judulnya akan diam-diam mengganti mata uang seluruh harga. */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-meta font-semibold text-fg-muted">Mata uang</span>
+              <Segmen<MataUang>
+                label={`Mata uang ${sup.nama}`}
+                nilai={sup.mataUang}
+                pilihan={[
+                  { nilai: "IDR", label: "IDR" },
+                  { nilai: "USD", label: "USD $" },
+                ]}
+                onUbah={(m) => onUbah((x) => ({ ...x, mataUang: m }))}
+              />
             </div>
-            <p className="mt-3 text-meta text-fg-subtle">
-              Total volume pengiriman: <strong>{pcs(inv.qty)}</strong> ÷ {angka(sup.freight.pcsPerCBM)}{" "}
-              pcs/CBM = <strong>{cbm.toFixed(2).replace(".", ",")} CBM</strong> (biaya freight{" "}
-              {rupiah(cbm * sup.freight.ratePerCBM)})
-            </p>
-          </>
-        ) : (
-          <p className="text-meta text-fg-subtle">
-            Freight nonaktif - biayanya dianggap sudah termasuk harga vendor, dan tidak
-            dihitung di COGS maupun Initial Investment.
-          </p>
-        )}
-      </div>
+          </div>
 
-      <div className="mt-4 flex flex-wrap items-end justify-between gap-3 border-t border-border pt-3">
-        <p className="text-meta text-fg-muted">Total investasi</p>
-        <p className="tabular text-card-title font-bold text-fg">{rupiah(inv.total)}</p>
-      </div>
+          {/* Sama alasannya: di dalam <label>, klik teks "Foto produk" akan
+              mengaktifkan tombol × foto pertama - menghapusnya. */}
+          <div className="mb-5 flex flex-col gap-1.5">
+            <span className="text-meta font-semibold text-fg-muted">
+              Foto produk
+              <span className="ml-1 font-normal text-fg-subtle">
+                (opsional, bisa lebih dari satu, tampil di tabel perbandingan)
+              </span>
+            </span>
+            <UnggahFoto foto={sup.foto} onUbah={setFoto} ariaLabel={`foto ${sup.nama}`} />
+          </div>
+
+          <p className="mb-2 text-label uppercase text-fg-muted">
+            Fixed cost - molding (sekali bayar)
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Bidang label={l.molding[0]}>
+              <IsianAngka
+                nilai={sup.molding.botol}
+                awalan={simbol}
+                ariaLabel={l.molding[0]}
+                onUbah={(n) => onUbah((x) => ({ ...x, molding: { ...x.molding, botol: n } }))}
+              />
+            </Bidang>
+            <Bidang label={l.molding[1]}>
+              <IsianAngka
+                nilai={sup.molding.cap}
+                awalan={simbol}
+                ariaLabel={l.molding[1]}
+                onUbah={(n) => onUbah((x) => ({ ...x, molding: { ...x.molding, cap: n } }))}
+              />
+            </Bidang>
+            <Bidang label={l.molding[2]}>
+              <IsianAngka
+                nilai={sup.molding.silikon}
+                awalan={simbol}
+                ariaLabel={l.molding[2]}
+                onUbah={(n) => onUbah((x) => ({ ...x, molding: { ...x.molding, silikon: n } }))}
+              />
+            </Bidang>
+          </div>
+
+          <p className="mb-2 mt-5 text-label uppercase text-fg-muted">Variable cost - per unit</p>
+          <div className="grid gap-3 sm:grid-cols-4">
+            <Bidang label={l.satuan[0]}>
+              <IsianAngka
+                nilai={sup.satuan.botol}
+                digit={2}
+                awalan={simbol}
+                ariaLabel={l.satuan[0]}
+                onUbah={(n) => onUbah((x) => ({ ...x, satuan: { ...x.satuan, botol: n } }))}
+              />
+            </Bidang>
+            <Bidang label={l.satuan[1]}>
+              <IsianAngka
+                nilai={sup.satuan.cap}
+                digit={2}
+                awalan={simbol}
+                ariaLabel={l.satuan[1]}
+                onUbah={(n) => onUbah((x) => ({ ...x, satuan: { ...x.satuan, cap: n } }))}
+              />
+            </Bidang>
+            <Bidang label={l.satuan[2]}>
+              <IsianAngka
+                nilai={sup.satuan.aksesoris}
+                digit={2}
+                awalan={simbol}
+                ariaLabel={l.satuan[2]}
+                onUbah={(n) => onUbah((x) => ({ ...x, satuan: { ...x.satuan, aksesoris: n } }))}
+              />
+            </Bidang>
+            <Bidang label="Minimum order qty">
+              <IsianAngka
+                nilai={sup.moq}
+                akhiran="pcs"
+                ariaLabel="Minimum order quantity"
+                onUbah={(n) => onUbah((x) => ({ ...x, moq: n }))}
+              />
+            </Bidang>
+          </div>
+
+          <div className="mt-5 rounded-md border border-border bg-surface-muted p-3.5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <Sakelar
+                nyala={sup.freight.aktif}
+                label="Freight Forwarder"
+                onUbah={(n) => onUbah((x) => ({ ...x, freight: { ...x.freight, aktif: n } }))}
+              />
+              <button
+                type="button"
+                onClick={onResetFreight}
+                className="text-meta font-semibold text-primary hover:text-primary-hover"
+              >
+                ↺ pakai default asumsi dasar
+              </button>
+            </div>
+
+            {sup.freight.aktif ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Bidang label="Pcs per CBM">
+                    <IsianAngka
+                      nilai={sup.freight.pcsPerCBM}
+                      akhiran="pcs"
+                      ariaLabel="Pcs per CBM"
+                      onUbah={(n) =>
+                        onUbah((x) => ({ ...x, freight: { ...x.freight, pcsPerCBM: n } }))
+                      }
+                    />
+                  </Bidang>
+                  <Bidang label="Rate per CBM">
+                    <IsianAngka
+                      nilai={sup.freight.ratePerCBM}
+                      awalan="Rp"
+                      ariaLabel="Rate per CBM"
+                      onUbah={(n) =>
+                        onUbah((x) => ({ ...x, freight: { ...x.freight, ratePerCBM: n } }))
+                      }
+                    />
+                  </Bidang>
+                  <Bidang label="Freight / botol (hasil)">
+                    <span className="flex h-control items-center px-0.5">
+                      <span className="tabular text-body font-bold text-primary">
+                        {rupiah(freightPerBotol(sup))}
+                      </span>
+                    </span>
+                  </Bidang>
+                </div>
+                <p className="mt-3 text-meta text-fg-subtle">
+                  Total volume pengiriman: <strong>{pcs(inv.qty)}</strong> ÷ {angka(sup.freight.pcsPerCBM)}{" "}
+                  pcs/CBM = <strong>{cbm.toFixed(2).replace(".", ",")} CBM</strong> (biaya freight{" "}
+                  {rupiah(cbm * sup.freight.ratePerCBM)})
+                </p>
+              </>
+            ) : (
+              <p className="text-meta text-fg-subtle">
+                Freight nonaktif - biayanya dianggap sudah termasuk harga vendor, dan tidak
+                dihitung di COGS maupun Initial Investment.
+              </p>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-end justify-between gap-3 border-t border-border pt-3">
+            <p className="text-meta text-fg-muted">Total investasi</p>
+            <p className="tabular text-card-title font-bold text-fg">{rupiah(inv.total)}</p>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
 
+/* ════════════════════════════════════════════════════════════ ikon ══ */
+/* SVG sebaris, warnanya `currentColor` - ikut token teks di sekitarnya, jadi
+   tema gelap dan palet cetak berlaku tanpa satu hex pun. */
+
+const IkonPanah = ({ terbuka }: { terbuka: boolean }) => (
+  <svg
+    viewBox="0 0 16 16"
+    aria-hidden
+    className={cx("h-4 w-4 shrink-0 text-fg-subtle transition-transform", terbuka && "rotate-90")}
+  >
+    <path
+      d="M6 3.5 10.5 8 6 12.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const IkonPegangan = () => (
+  <svg viewBox="0 0 16 16" aria-hidden className="h-4 w-4">
+    {[4, 8, 12].flatMap((y) =>
+      [6, 10].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.25" fill="currentColor" />),
+    )}
+  </svg>
+);
+
+const IkonBotol = () => (
+  <svg
+    viewBox="0 0 24 24"
+    aria-hidden
+    className="h-5 w-5"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.75"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M10 2.5h4M10.5 2.5v3.2c0 .5-.2 1-.6 1.4l-1.3 1.3a3.5 3.5 0 0 0-1.1 2.5V19a2.5 2.5 0 0 0 2.5 2.5h4a2.5 2.5 0 0 0 2.5-2.5v-8.1a3.5 3.5 0 0 0-1.1-2.5l-1.3-1.3c-.4-.4-.6-.9-.6-1.4V2.5" />
+    <path d="M7.5 13.5h9" />
+  </svg>
+);
+
+const IkonBox = () => (
+  <svg
+    viewBox="0 0 24 24"
+    aria-hidden
+    className="h-5 w-5"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.75"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M21 7.5 12 3 3 7.5 12 12l9-4.5Z" />
+    <path d="M3 7.5v9L12 21l9-4.5v-9" />
+    <path d="M12 12v9" />
+  </svg>
+);
+
 /* ══════════════════════════════════════════════════════════════ tabel ══ */
+
+/**
+ * Kolom "Komponen" dibekukan: dengan empat-lima supplier tabelnya harus
+ * digulir ke samping, dan begitu labelnya ikut hilang, angka di kolom kanan
+ * tidak bisa dibaca baris mana. Garis pemisahnya pseudo-elemen, bukan border:
+ * border di tabel `border-collapse` tidak ikut menempel saat sel-nya sticky.
+ */
+const KOLOM_BEKU =
+  "sticky left-0 z-10 after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border";
+/** Sel isi butuh latar sendiri — kalau transparan, kolom yang digulir terlihat menembus. */
+const KOLOM_BEKU_ISI = `${KOLOM_BEKU} bg-surface`;
 
 function TabelBanding({
   jenis,
@@ -709,7 +1089,7 @@ function TabelBanding({
         <table className="w-full border-collapse">
           <thead>
             <tr>
-              <th className="th rounded-tl-md">
+              <th className={cx("th rounded-tl-md", KOLOM_BEKU)}>
                 Komponen{" "}
                 <span className="font-normal normal-case tracking-normal text-fg-subtle">
                   (kurs terpakai {rupiah(kurs)}/USD)
@@ -854,7 +1234,7 @@ function TabelBanding({
             />
 
             <tr className="border-t border-border-strong">
-              <td className="td font-semibold text-fg">
+              <td className={cx("td font-semibold text-fg", KOLOM_BEKU_ISI)}>
                 Total investasi
                 <span className="ml-1 font-normal text-fg-subtle">(qty masing-masing)</span>
               </td>
@@ -869,7 +1249,7 @@ function TabelBanding({
               ))}
             </tr>
             <tr>
-              <td className="td font-semibold text-fg">
+              <td className={cx("td font-semibold text-fg", KOLOM_BEKU_ISI)}>
                 Biaya {l.namaUnit} / unit
                 <span className="ml-1 font-normal text-fg-subtle">(termasuk freight)</span>
               </td>
@@ -925,7 +1305,7 @@ function Baris({
 }) {
   return (
     <tr>
-      <td className="td text-fg-muted">{label}</td>
+      <td className={cx("td text-fg-muted", KOLOM_BEKU_ISI)}>{label}</td>
       {kolom.map((b) => (
         <td key={b.sup.id} className={cx("td tabular text-right", hi(b.sup.id))} data-numeric>
           {render(b)}
@@ -966,7 +1346,7 @@ function BarisTumpuk({
 }) {
   return (
     <tr>
-      <td className="td text-fg-muted">{label}</td>
+      <td className={cx("td text-fg-muted", KOLOM_BEKU_ISI)}>{label}</td>
       {kolom.map((b) => {
         const mu = mataUang(b);
         const tambahan = ekstra?.(b);

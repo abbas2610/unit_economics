@@ -148,7 +148,12 @@
   /* ---------- Ukuran struktural ---------- */
   --spacing-topbar: 52px;
   --spacing-tabbar: 44px;
-  --spacing-container: 1180px; /* sama seperti .wrap di builder lama */
+  /* Dulu 1180px seperti .wrap di builder lama - di monitor rapat yang lebar
+     itu menyisakan ~340px kosong tiap sisi, sementara tabel perbandingan
+     supplier terpaksa digulir ke samping. Selebar layar penuh ternyata
+     terlalu mepet. 1536px di tengah keduanya; layar yang lebih sempit tetap
+     penuh dengan jarak `px-5`. */
+  --spacing-container: 1536px;
   --spacing-row: 42px;
   --spacing-control: 36px;
   --spacing-control-sm: 29px;

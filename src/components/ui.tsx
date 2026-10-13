@@ -701,9 +701,16 @@ export function BarisRincian({
   );
 }
 
-/** Tabel lebar selalu punya scroll sendiri, supaya halaman tidak ikut bergeser. */
+/**
+ * Tabel lebar selalu punya scroll sendiri, supaya halaman tidak ikut bergeser.
+ *
+ * ⚠️ Tanpa padding. Dulu `-mx-5 px-5` (supaya scrollbar selebar kartu), tapi
+ * kolom yang `sticky` menempel di tepi DALAM padding itu - isi yang digulir
+ * lalu terlihat lewat di celah 20px sebelah kiri kolom beku, di luar batas
+ * tabel. Tepi wadah scroll harus persis tepi tabel.
+ */
 export const BungkusTabel = ({ children }: { children: ReactNode }) => (
-  <div className="-mx-5 overflow-x-auto px-5">{children}</div>
+  <div className="overflow-x-auto">{children}</div>
 );
 
 export const Catatan = ({ children }: { children: ReactNode }) => (

@@ -147,6 +147,15 @@ kontrol(
 console.log("\n=== 2. 'Beli 100 botol saja' bisa dimodelkan ===");
 
 {
+  /* Kartu supplier sekarang default TERTUTUP (hanya kepala ringkasnya) —
+     kotak MOQ baru ada di DOM setelah detailnya dibuka. */
+  await hal
+    .locator('[data-seksi="supplier"] section.card')
+    .first()
+    .locator("button[aria-expanded]")
+    .first()
+    .click();
+
   /* Supplier pertama ber-MOQ 10.000 secara default; turunkan supaya pembelian
      100 benar-benar mengikat dan bukan MOQ-nya. */
   await isi("Minimum order quantity", 1);
