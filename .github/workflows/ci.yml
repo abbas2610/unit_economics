@@ -231,8 +231,30 @@ jobs:
           name: out
           path: out
 
+      # ⚠️ Dulu satu langkah `npx playwright install --with-deps chromium`.
+      # Mulai 11 Nov 2026 langkah itu menggantung ~10 menit lalu gagal, dua run
+      # berturut-turut, tanpa satu pun perubahan di lockfile (Playwright tetap
+      # 1.62.1); yang berubah image `ubuntu-latest`. Deploy ikut terhenti
+      # karena `kirim` butuh job ini hijau. Sekarang dipisah dan DIBATASI:
+      #   1. library sistem (apt-get): maks 4 menit dan tidak boleh
+      #      menggagalkan job: image runner sudah membawa Google Chrome
+      #      beserta library yang dibutuhkan Chromium.
+      #   2. unduhan browser: maks 4 menit, dicoba sekali lagi, lalu gagal
+      #      CEPAT dengan pesan yang jelas, bukan menggantung.
+      - name: Pasang library sistem Chromium
+        run: npx playwright install-deps chromium
+        timeout-minutes: 4
+        continue-on-error: true
+
       - name: Pasang Chromium
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 10
+        run: |
+          timeout 240 npx playwright install chromium && exit 0
+          echo "::warning::Unduhan Chromium Playwright gagal atau melewati 4 menit, mencoba sekali lagi."
+          timeout 240 npx playwright install chromium || {
+            echo "::error::Chromium Playwright tidak bisa diunduh dua kali berturut-turut. Ini gangguan jaringan/CDN di runner, bukan kode aplikasi."
+            exit 1
+          }
 
       - name: Sajikan bundle
         run: npm run serve:build &

@@ -65,6 +65,16 @@ dokumen.
   Asumsinya salah, dan selama itu seluruh probe layar lulus untuk halaman yang
   akan 404 setelah deploy. Sekarang bahkan akarnya tidak dipetakan.
 
+- **`npx playwright install --with-deps chromium` bisa menggantung di runner
+  baru tanpa satu pun perubahan di repo.** 11 Nov 2026: dua run berturut-turut
+  macet ~10 menit di langkah itu (lockfile tetap Playwright 1.62.1; yang
+  berubah image `ubuntu-latest`), dan karena `kirim` butuh job layar hijau,
+  deploy ikut terhenti. Langkahnya kini dipisah: `install-deps` dibatasi 4
+  menit dan boleh gagal (image runner sudah membawa library Chrome), unduhan
+  browser dibatasi dan dicoba ulang sekali. Langkah jaringan di CI selalu
+  diberi batas waktu: yang menggantung menghabiskan 10 menit tanpa pesan apa
+  pun.
+
 - **`next start` TIDAK menyajikan `output: "export"`.** Probe layar memakai
   `scripts/serve-build.mjs`, bukan `next start`.
 
