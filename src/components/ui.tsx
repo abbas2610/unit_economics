@@ -173,6 +173,68 @@ export function IsianAngka({
   );
 }
 
+/**
+ * Kotak angka yang BOLEH KOSONG — kosong berarti `null`, bukan `0`.
+ *
+ * Dipakai kolom skenario sensitivitas: `null` = "ikut default".
+ * `IsianAngka` biasa tidak bisa dipakai di sana karena `bacaAngka("")` = `0`,
+ * dan mengosongkan kotak akan diam-diam berarti "dijual gratis".
+ *
+ * ⚠️ Kalau `null`, kotaknya MENULIS nilai yang berlaku (`otomatis`) sebagai
+ * angka biasa — bukan placeholder. Versi pertama memakai placeholder abu-abu,
+ * dan pemilik membacanya sebagai "variabelnya masih kosong": angka yang
+ * sebenarnya sudah dihitung tidak terlihat sebagai jawaban. Yang membedakan
+ * isian sendiri dari nilai otomatis adalah latar & bobot huruf, dan
+ * `data-diubah` untuk probe.
+ */
+export function IsianAngkaOpsional({
+  nilai,
+  otomatis,
+  onUbah,
+  awalan,
+  className,
+  ariaLabel,
+}: {
+  nilai: number | null;
+  /** Nilai yang berlaku kalau `nilai` kosong — ditampilkan, tidak disimpan. */
+  otomatis: number;
+  onUbah: (n: number | null) => void;
+  awalan?: string;
+  className?: string;
+  ariaLabel?: string;
+}) {
+  const [draf, setDraf] = useState<string | null>(null);
+  const diubah = nilai != null;
+  const tampil = draf ?? tulisAngka(diubah ? nilai : otomatis);
+
+  return (
+    <span
+      data-diubah={diubah ? "ya" : "tidak"}
+      className={cx(kelasKotak, diubah && "border-primary/60 bg-primary-subtle", className)}
+    >
+      {awalan ? <span className="text-meta text-fg-subtle">{awalan}</span> : null}
+      <input
+        type="text"
+        inputMode="decimal"
+        aria-label={ariaLabel}
+        className={cx(
+          "tabular w-full min-w-0 bg-transparent text-body text-fg outline-none",
+          diubah || draf != null ? "font-semibold" : "font-normal",
+        )}
+        value={tampil}
+        /* Pilih semua saat difokus: mengetik langsung MENGGANTI nilai
+           otomatis, bukan menempel di belakangnya jadi "20.000180". */
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => {
+          setDraf(e.target.value);
+          onUbah(e.target.value.trim() === "" ? null : bacaAngka(e.target.value));
+        }}
+        onBlur={() => setDraf(null)}
+      />
+    </span>
+  );
+}
+
 export function IsianTeks({
   nilai,
   onUbah,

@@ -17,7 +17,7 @@ src/components/        komponen & store dokumen
 src/app/               rute
 ```
 
-### Lima konteks
+### Tujuh konteks
 
 | Konteks | Menjawab |
 | --- | --- |
@@ -26,6 +26,7 @@ src/app/               rute
 | `supplier` | molding, biaya satuan, MOQ, freight per supplier, total per batch |
 | `unit-economics` | COGS, gross profit, margin, break-even, skenario perbandingan |
 | `investasi` | initial investment: produk + marketing, pajak, kelebihan stok, biaya custom |
+| `sensitivitas` | kolom skenario tab 6: kurs & harga jual diterapkan ke salinan dokumen, lalu dihitung fungsi tab 4 & 5 |
 | `dokumen` | bentuk dokumen, migrasi, penyimpanan lokal & awan |
 
 ## Aturan, dan apa yang rusak kalau dilanggar

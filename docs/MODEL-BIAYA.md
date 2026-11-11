@@ -312,3 +312,34 @@ sebenarnya.
 > di sana adalah "tidak akan pernah balik modal pada harga ini". Meleburnya
 > menampilkan kabar terburuk di halaman sebagai kabar terbaik.
 
+---
+
+## 6. Sensitivity Analysis (tab 6)
+
+**Asumsinya cuma tiga: kurs, harga jual kecil, harga jual besar.** Semua yang
+lain — rincian biaya per botol, initial investment, margin, break-even — adalah
+HASIL. Versi pertama membuka lima belas variabel rupiah untuk diisi; pemilik
+membacanya terbalik dari kebutuhannya ("rupiah jadi 20 ribu, harga botol jadi
+berapa?"), dan sel yang tidak diisi tampil kosong.
+
+**Tidak ada rumus baru.** Skenario adalah dokumen lain: `terapkan(dok, skenario)`
+menghasilkan salinan dengan kurs/harga jual skenario, lalu salinan itu dihitung
+oleh `unitEconomics()` dan `initialInvestment()` yang sama dengan tab 4 dan 5.
+`probe:hitung` bagian 11 menuntut skenario kosong menghasilkan ringkasan yang
+**identik** dengan default.
+
+```
+ikut kurs     fragrance oil (USD/liter), botol/aksesoris/box/molding dari supplier USD
+tetap         OEM, fulfillment, freight (tarif CBM dalam Rupiah), vendor ber-Rupiah
+Δ rupiah      baru − default,  persen = Δ ÷ |default|   (null kalau default 0)
+Δ margin      dalam POIN, tanpa persen
+```
+
+Mata uang tiap baris ditentukan **data supplier-nya**, bukan daftar di kode —
+supplier botol besar yang diganti ke penawaran USD otomatis ikut kurs.
+`probe:hitung` mengunci kedua arah: kurs +10% menggeser fragrance dan botol
+kecil (USD) tepat +10%, dan OEM, box, freight, botol besar (IDR) tidak bergerak
+sama sekali.
+
+Skenario hanya menyimpan asumsi yang **diubah**. Yang tidak diisi = ikut
+default (bukan `0`), dan kotaknya menampilkan nilai default itu sebagai angka.

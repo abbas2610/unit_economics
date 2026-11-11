@@ -105,4 +105,29 @@
   .cetak-halaman:last-child {
     break-after: auto;
   }
+
+  /* ── Laporan Sensitivity Analysis (`/sensitivitas/cetak`): SATU halaman A4 ──
+     Kertas A4 dipasang `siapkanKertas()` di rute itu sendiri. Pratinjau di
+     layar memberi kartu ber-border; di kertas border & padding dilepas, dan
+     padding `<main>` dibuang karena margin halaman sudah mengurusnya. Isinya
+     SUDAH selebar area cetak A4 (lihat `LEBAR_ISI_MM`). */
+  .cetak-satu-halaman {
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    /* Lencana A/B/C dan warna Δ tetap tercetak walau opsi "Background
+       graphics" di dialog print mati; di PDF pertama pemilik, lencananya
+       hilang karena itu. */
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  main:has(.cetak-satu-halaman) {
+    max-width: none;
+    padding: 0;
+  }
+  /* Dikecilkan secukupnya supaya muat satu halaman, dihitung dari tinggi isi
+     (`siapkanKertas()`). 1 = tidak dikecilkan. */
+  .cetak-isi {
+    zoom: var(--zoom-cetak, 1);
+  }
 }

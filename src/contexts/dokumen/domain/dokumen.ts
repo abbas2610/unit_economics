@@ -28,6 +28,7 @@ import { legalPerVarianAwal, varianAwal } from "@/contexts/fragrance/domain/vari
 import type { Supplier } from "@/contexts/supplier/domain/supplier";
 import { packagingAwal, supplierAwal } from "@/contexts/supplier/domain/supplier";
 import type { KomponenCustom, Skenario } from "@/contexts/unit-economics/domain/skenario";
+import type { SkenarioSensitivitas } from "@/contexts/sensitivitas/domain/sensitivitas";
 
 export type Dokumen = {
   /** Bentuk dokumen. Naik hanya kalau migrasi dibutuhkan. */
@@ -105,6 +106,17 @@ export type Dokumen = {
   skenario: Skenario[];
   /** Biaya tambahan bebas nama & angka di Initial Investment — Category 1. */
   investasiCustom: KomponenCustom[];
+
+  /**
+   * Kolom skenario di tab Sensitivity Analysis (B, C, …). Kolom A — Default —
+   * tidak disimpan: ia dokumen ini sendiri.
+   *
+   * Tiap skenario HANYA menyimpan variabel rupiah yang diubah; yang lain ikut
+   * default dan terus bergerak bersamanya. Itu bukan nilai turunan — ia input
+   * yang diketik tim — tapi juga bukan salinan: lihat
+   * `sensitivitas/domain/sensitivitas.ts` soal kenapa salinan lengkap basi.
+   */
+  sensitivitas: SkenarioSensitivitas[];
 };
 
 export function dokumenAwal(): Dokumen {
@@ -135,5 +147,6 @@ export function dokumenAwal(): Dokumen {
     opsi: { amortisasiMolding: false },
     skenario: [],
     investasiCustom: [],
+    sensitivitas: [],
   };
 }

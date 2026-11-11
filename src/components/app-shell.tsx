@@ -29,6 +29,7 @@ export const TAB = [
   { href: "/supplier-besar", nomor: 3, label: "Supplier Botol Besar" },
   { href: "/investasi", nomor: 4, label: "Initial Investment" },
   { href: "/unit-economics", nomor: 5, label: "Unit Economics" },
+  { href: "/sensitivitas", nomor: 6, label: "Sensitivity Analysis" },
 ] as const;
 
 /**
@@ -60,8 +61,11 @@ export const TAB = [
  * Bukan cuma dipakai tab nav — tombol "Export / Print PDF" juga memakainya
  * untuk menuju `/cetak`, rute yang sengaja TIDAK ada di `TAB` (bukan tab
  * biasa, jadi diterima `string` polos, bukan dibatasi union href TAB).
+ * Diekspor karena tombol "Export PDF" di tab Sensitivity Analysis juga
+ * menuju rute cetaknya sendiri — URL yang ditulis tangan di sana akan 404
+ * di produksi persis seperti tab nav dulu.
  */
-const tautanTab = (route: string): string => {
+export const tautanTab = (route: string): string => {
   const path = `${BASE_PATH}${route === "/" ? "" : route}`;
   if (process.env.NODE_ENV !== "production") return `${path}/`;
   return `${path}/index.html`;
@@ -113,8 +117,11 @@ function TombolTema() {
 function Perkakas() {
   const { ganti } = useDokumen();
 
+  /* `inline-flex items-center`, bukan cuma tinggi tetap: `<button>` menengahkan
+     teksnya sendiri secara vertikal, `<a>` tidak — "Riwayat" (tautan) sempat
+     duduk lebih tinggi dari "Gelap"/"Reset" (tombol) di sebelahnya. */
   const tombol =
-    "h-control-sm rounded-sm border border-white/20 px-2.5 text-meta font-semibold text-white/80 hover:border-white/40 hover:text-white";
+    "inline-flex h-control-sm items-center justify-center rounded-sm border border-white/20 px-2.5 text-meta font-semibold text-white/80 hover:border-white/40 hover:text-white";
 
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-cetak="sembunyi">

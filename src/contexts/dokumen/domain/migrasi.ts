@@ -33,6 +33,8 @@ import type { Dimensi } from "@/contexts/asumsi/domain/kemasan";
 import type { Varian } from "@/contexts/fragrance/domain/varian";
 import type { MataUang, Supplier } from "@/contexts/supplier/domain/supplier";
 import type { KomponenCustom, Skenario } from "@/contexts/unit-economics/domain/skenario";
+import { KUNCI_VARIABEL } from "@/contexts/sensitivitas/domain/sensitivitas";
+import type { KunciVariabel, SkenarioSensitivitas } from "@/contexts/sensitivitas/domain/sensitivitas";
 import type { Dokumen } from "./dokumen";
 import { dokumenAwal } from "./dokumen";
 
@@ -96,6 +98,7 @@ export function idBerikutnya(dok: Dokumen): number {
     ...dok.packagingKecil.map((s) => s.id),
     ...dok.packagingBesar.map((s) => s.id),
     ...dok.skenario.map((s) => s.id),
+    ...dok.sensitivitas.map((s) => s.id),
   ]) {
     const m = /(\d+)$/.exec(id ?? "");
     if (m) maks = Math.max(maks, Number(m[1]));
@@ -139,6 +142,7 @@ function perbaikiIdGanda(dok: Dokumen): Dokumen {
     packagingKecil: bersihkan(dok.packagingKecil, "pk"),
     packagingBesar: bersihkan(dok.packagingBesar, "pb"),
     skenario: bersihkan(dok.skenario, "sc"),
+    sensitivitas: bersihkan(dok.sensitivitas, "sen"),
     pilihan,
   };
 }
@@ -257,6 +261,26 @@ const skenarioDari = (v: unknown, urut: number): Skenario => {
   };
 };
 
+/**
+ * Satu kolom skenario sensitivitas.
+ *
+ * Hanya kunci yang dikenal `KUNCI_VARIABEL` yang dibaca, dan hanya yang berisi
+ * angka sungguhan. Lewat `numOpsional`, BUKAN `num(v, 0)`: kunci yang kosong
+ * berarti "ikut default", dan meleburnya jadi 0 mengubah kolom yang belum
+ * disentuh menjadi "botolnya gratis" — kabar terbaik yang tidak pernah
+ * ditanyakan siapa pun.
+ */
+const sensitivitasDari = (v: unknown, urut: number): SkenarioSensitivitas => {
+  const s = objek(v);
+  const mentah = objek(s.nilai);
+  const nilai: Partial<Record<KunciVariabel, number>> = {};
+  for (const k of KUNCI_VARIABEL) {
+    const n = numOpsional(mentah[k]);
+    if (n != null) nilai[k] = n;
+  }
+  return { id: teks(s.id, "sen" + urut), nama: teks(s.nama, "Skenario"), nilai };
+};
+
 const varianDari = (v: unknown): Varian => {
   const f = objek(v);
   return {
@@ -359,6 +383,8 @@ function dariV0(payload: Rekaman): Dokumen {
     /* Payload v0 tidak pernah punya fitur ini sama sekali — jatuh ke array
        kosong lewat `larik()`. */
     investasiCustom: larik(payload.investasiCustom).map((c, i) => komponenCustomDari(c, i + 1)),
+    /* Builder HTML tidak pernah punya bentuk ini — selalu kosong di v0. */
+    sensitivitas: [],
   };
 }
 
@@ -453,6 +479,7 @@ function dariV1(payload: Rekaman): Dokumen {
     opsi: { amortisasiMolding: boolean(opsi.amortisasiMolding, false) },
     skenario: larik(payload.skenario).map(skenarioDari),
     investasiCustom: larik(payload.investasiCustom).map((c, i) => komponenCustomDari(c, i + 1)),
+    sensitivitas: larik(payload.sensitivitas).map((s, i) => sensitivitasDari(s, i + 1)),
   };
 }
 

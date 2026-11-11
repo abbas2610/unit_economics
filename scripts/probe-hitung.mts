@@ -37,8 +37,12 @@ import {
   breakEven,
   grossMarginTertimbang,
   hasilProduksi,
+  supplierTerpilih,
   unitEconomics,
 } from "@/contexts/unit-economics/aplikasi/unit-economics";
+import { VARIABEL } from "@/contexts/sensitivitas/domain/sensitivitas";
+import type { SkenarioSensitivitas } from "@/contexts/sensitivitas/domain/sensitivitas";
+import { jalankan, selisih } from "@/contexts/sensitivitas/aplikasi/sensitivitas";
 
 let lulus = 0;
 let gagal = 0;
@@ -416,6 +420,111 @@ kontrol(
   "[kontrol negatif] pemeriksa sebaran menolak varian premium",
   Math.max(2.4, 12) / Math.min(2.4, 12) < 2,
 );
+
+/* ══════════════════════════════════ 11. sensitivity analysis (tab 6) ══ */
+console.log("\n=== 11. Sensitivity analysis: skenario = dokumen lain, bukan rumus lain ===");
+
+{
+  const awal = dokumenAwal();
+  const sk = (nilai: SkenarioSensitivitas["nilai"]): SkenarioSensitivitas => ({ id: "senx", nama: "x", nilai });
+  const dasar = jalankan(awal);
+  const r = dasar.ringkasan;
+
+  /* a. Skenario kosong = default, persis. Kalau ini bergeser, ada komponen
+        yang dibaca beda oleh `terapkan()` — dan selisihnya akan terbaca
+        sebagai dampak skenario di tiap kolom. */
+  cek(
+    "skenario tanpa isian menghasilkan ringkasan yang identik dengan default",
+    JSON.stringify(jalankan(awal, sk({})).ringkasan) === JSON.stringify(r),
+  );
+
+  /* b. Tidak ada yang ditukar: dokumen asli utuh setelah skenario apa pun. */
+  const sebelum = JSON.stringify(awal);
+  jalankan(awal, sk({ kurs: 25_000, hargaKecil: 1, hargaBesar: 1 }));
+  cek("menjalankan skenario tidak mengubah dokumen asli", JSON.stringify(awal) === sebelum);
+
+  /* c. Default = angka tab 4 & 5, dari fungsi yang sama. */
+  const ue = unitEconomics(awal, "kecil");
+  sama("COGS kecil sensitivitas = COGS tab Unit Economics", r.cogsKecil, ue.cogs);
+  sama("fragrance kecil sensitivitas = tab Unit Economics", r.fragranceKecil, ue.fragrance);
+  sama("total investasi sensitivitas = tab Initial Investment", r.totalInvestasi, initialInvestment(awal).total);
+
+  /* d. Asumsi yang diisi muncul apa adanya. */
+  for (const v of VARIABEL) {
+    const h = jalankan(awal, sk({ [v.kunci]: 21_000 }));
+    sama(`${v.label}: nilai efektif = yang diisi`, h.variabel[v.kunci], 21_000);
+  }
+
+  /* e. Kurs +10% — yang USD bergeser TEPAT 10%, yang Rupiah TIDAK bergeser.
+        Ini pertanyaan pemilik: "kalau rupiah jadi 20 ribu, harga botol jadi
+        berapa, OEM jadi berapa". Default: supplier botol kecil USD, botol
+        besar & packaging IDR. */
+  cek("prasyarat: supplier botol kecil USD", supplierTerpilih(awal, "kecil")?.mataUang === "USD");
+  cek("prasyarat: supplier botol besar IDR", supplierTerpilih(awal, "besar")?.mataUang === "IDR");
+  const naik = jalankan(awal, sk({ kurs: awal.asumsi.kurs * 1.1 })).ringkasan;
+  const rasio = (k: keyof typeof r) => (naik[k] ?? 0) / (r[k] ?? 1);
+  dekat("kurs +10% → fragrance kecil +10% (USD/liter)", rasio("fragranceKecil"), 1.1, 1e-9);
+  dekat("kurs +10% → fragrance besar +10%", rasio("fragranceBesar"), 1.1, 1e-9);
+  dekat("kurs +10% → botol kecil + perizinan +10% (supplier USD)", rasio("botolKecil"), 1.1, 1e-9);
+  dekat("kurs +10% → aksesoris kecil +10% (supplier USD)", rasio("aksesorisKecil"), 1.1, 1e-9);
+  sama("kurs +10% → botol besar TETAP (supplier IDR)", naik.botolBesar, r.botolBesar);
+  sama("kurs +10% → OEM kecil TETAP (Rupiah)", naik.oemKecil, r.oemKecil);
+  sama("kurs +10% → fulfillment TETAP", naik.fulfillmentKecil, r.fulfillmentKecil);
+  sama("kurs +10% → box kecil TETAP (vendor packaging IDR)", naik.boxKecil, r.boxKecil);
+  sama("kurs +10% → freight kecil TETAP (tarif CBM dalam Rupiah)", naik.freightKecil, r.freightKecil);
+  cek("kurs naik → total investasi naik", (naik.totalInvestasi ?? 0) > (r.totalInvestasi ?? 0));
+  cek("kurs naik → break-even naik", (naik.breakEven ?? 0) > (r.breakEven ?? 0));
+
+  /* f. COGS = jumlah komponennya, di kolom skenario juga. */
+  for (const [u, n] of [["Kecil", naik], ["Besar", naik]] as const) {
+    const jumlah = ["fragrance", "oem", "botol", "aksesoris", "box", "freight", "fulfillment", "amortisasi"]
+      .reduce((a, k) => a + (n[`${k}${u}` as keyof typeof n] ?? 0), 0);
+    dekat(`COGS ${u.toLowerCase()} skenario = jumlah rincian yang ditampilkan`, jumlah, n[`cogs${u}`] ?? NaN, 1e-6);
+  }
+
+  /* g. Harga jual: rupiah demi rupiah ke gross profit, COGS tidak bergeser. */
+  const harga = jalankan(awal, sk({ hargaKecil: awal.harga.kecil + 10_000 })).ringkasan;
+  dekat("harga jual kecil +Rp10.000 → gross profit kecil +Rp10.000", (harga.gpKecil ?? 0) - (r.gpKecil ?? 0), 10_000);
+  sama("…dan COGS tidak bergeser (tidak ada komponen % harga jual)", harga.cogsKecil, r.cogsKecil);
+
+  /* h. Tidak balik modal = null, bukan 0 — dan Δ-nya ikut null. */
+  const rugi = jalankan(awal, sk({ hargaKecil: 1, hargaBesar: 1 })).ringkasan;
+  sama("harga jual Rp1 → break-even null, bukan 0", rugi.breakEven, null);
+  sama("…dan selisih break-even null", selisih(r.breakEven, rugi.breakEven, "pcs").selisih, null);
+
+  /* i. Contoh pemilik: Rp12.000 → Rp13.000 = +8,33%. Margin dalam poin. */
+  const s = selisih(12_000, 13_000);
+  sama("Rp12.000 → Rp13.000: selisih +Rp1.000", s.selisih, 1_000);
+  dekat("Rp12.000 → Rp13.000: +8,33%", s.persen ?? NaN, 8.3333, 0.001);
+  sama("margin 44% → 40%: −4 poin, persen null (bukan persen dari persen)", JSON.stringify(selisih(44, 40, "margin")), JSON.stringify({ selisih: -4, persen: null }));
+  sama("persen dari nol tidak terdefinisi → null", selisih(0, 5_000).persen, null);
+}
+
+{
+  const awal = dokumenAwal();
+  const d = jalankan(awal);
+
+  /* Kontrol negatif e: pemeriksa "TETAP" harus menyala kalau OEM ikut
+     dikalikan kurs — kesalahan yang akan membuat semua biaya terlihat
+     sensitif kurs. */
+  kontrol(
+    "[kontrol negatif] OEM yang ikut dikali kurs ditolak pemeriksa 'tetap'",
+    Object.is((d.ringkasan.oemKecil ?? 0) * 1.1, d.ringkasan.oemKecil),
+  );
+
+  /* Kontrol negatif a: pembanding "identik dengan default" menangkap satu
+     angka yang bergeser Rp0,01. */
+  const geser = { ...d.ringkasan, cogsKecil: (d.ringkasan.cogsKecil ?? 0) + 0.01 };
+  kontrol("[kontrol negatif] pembanding ringkasan menangkap geseran Rp0,01", JSON.stringify(geser) === JSON.stringify(d.ringkasan));
+
+  /* Kontrol negatif f: rincian yang kehilangan satu komponen tidak lagi
+     berjumlah COGS. */
+  const tanpaFreight = (d.ringkasan.cogsKecil ?? 0) - (d.ringkasan.freightKecil ?? 0);
+  kontrol(
+    "[kontrol negatif] rincian tanpa freight TIDAK sama dengan COGS",
+    Math.abs(tanpaFreight - (d.ringkasan.cogsKecil ?? 0)) <= 1e-6,
+  );
+}
 
 /* ══════════════════════════════════════════════════════════════ selesai ══ */
 console.log(`\n${lulus} lulus, ${gagal} gagal — ${lulus + gagal} pemeriksaan`);

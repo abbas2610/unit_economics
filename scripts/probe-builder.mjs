@@ -47,6 +47,7 @@ const TAB = [
   { path: "/supplier-besar/index.html", judul: "Supplier Botol Besar" },
   { path: "/investasi/index.html", judul: "Initial Investment" },
   { path: "/unit-economics/index.html", judul: "Unit Economics per Botol" },
+  { path: "/sensitivitas/index.html", judul: "Sensitivity Analysis" },
 ];
 
 const peramban = await chromium.launch();
@@ -408,6 +409,7 @@ console.log("\n=== 8. Klik tab dari dalam aplikasi tidak 404 ===");
     "Supplier Botol Besar",
     "Initial Investment",
     "Unit Economics",
+    "Sensitivity Analysis",
   ];
 
   await hal.goto(BASE + "/index.html", { waitUntil: "networkidle" });
@@ -527,6 +529,19 @@ cek(
 /* ═══════════════ 10. Laporan cetak: 4 halaman, tanpa Sensitivity ══ */
 console.log("\n=== 10. Laporan cetak (/cetak) ===");
 
+/* Kedua laporan (`/cetak` dan `/sensitivitas/cetak`) memanggil
+   `window.print()` sendiri; di headless itu bisa bertabrakan dengan
+   `page.pdf()` ("Page is already being printed") tergantung waktu. Yang
+   diuji di sini kertas hasil render, bukan dialognya — dialognya dibuktikan
+   terpanggil lewat penghitung yang dibaca bagian 11. Init script jalan ulang
+   di tiap navigasi, jadi penghitungnya mulai dari 0 per halaman. */
+await hal.addInitScript(() => {
+  window.__cetakDipanggil = 0;
+  window.print = () => {
+    window.__cetakDipanggil++;
+  };
+});
+
 {
   await hal.goto(BASE + "/cetak/index.html", { waitUntil: "networkidle" });
   const teks = (await hal.locator("body").innerText()) ?? "";
@@ -569,13 +584,143 @@ console.log("\n=== 10. Laporan cetak (/cetak) ===");
   await hal.emulateMedia({ media: null });
 }
 
-kontrol(
-  "[kontrol negatif] /sensitivitas/index.html memang sudah 404 — dihapus, bukan cuma disembunyikan dari nav",
-  await hal
-    .goto(BASE + "/sensitivitas/index.html")
-    .then((r) => (r?.status() ?? 0) < 400)
-    .catch(() => false),
-);
+/* ═══════ 11. Sensitivity Analysis: kolom skenario hidup, PDF satu halaman A4 ══ */
+/* Tab Sensitivitas lama (slider + tornado) dicabut 5 Sep 2026 dan bagian 10
+   sempat menuntut rutenya tetap 404. Tab 6 yang sekarang bentuknya lain —
+   tabel skenario berkolom atas permintaan pemilik, Nov 2026 — dan tuntutan
+   404 itu dicabut dengan sadar di sini, bukan dihapus diam-diam. */
+console.log("\n=== 11. Sensitivity Analysis: skenario, Δ, dan PDF satu halaman A4 ===");
+
+{
+  await hal.goto(BASE + "/sensitivitas/index.html", { waitUntil: "networkidle" });
+  const namaSkenario = hal.locator('input[aria-label^="Nama skenario"]');
+  const awalKolom = await namaSkenario.count();
+
+  await hal.getByRole("button", { name: "+ Tambah skenario", exact: true }).click();
+  cek("tombol Tambah skenario benar-benar menambah kolom", (await namaSkenario.count()) === awalKolom + 1);
+  const huruf = String.fromCharCode(66 + awalKolom); // B, C, …
+
+  const baris = (kunci) => hal.locator(`tbody tr[data-baris="${kunci}"]`);
+  const isian = (label) => hal.locator(`input[aria-label="${label}, skenario ${huruf}"]`);
+  const selAsumsi = (label) => hal.locator(`[data-diubah]:has(input[aria-label="${label}, skenario ${huruf}"])`);
+
+  /* ⚠️ Keluhan pemilik pada versi pertama: sel yang tidak diisi tampil
+     KOSONG (placeholder), jadi "harga botol jadi berapa" tidak terbaca di
+     mana pun. Sel asumsi yang belum disentuh harus berisi angka sungguhan. */
+  const kursAwal = Number((await isian("Kurs USD → IDR").inputValue()).replace(/\./g, "")) || 0;
+  cek("sel kurs yang belum diisi menampilkan angka default, bukan kosong", kursAwal > 0, String(kursAwal));
+  cek("…dan ditandai belum diubah", (await selAsumsi("Kurs USD → IDR").getAttribute("data-diubah")) === "tidak");
+
+  /* Kurs +10%: fragrance kecil (USD/liter) bergeser +10%, OEM tetap. Yang
+     diuji jawabannya tertulis di baris rincian, bukan cuma "ada angka". */
+  await isian("Kurs USD → IDR").fill(String(Math.round(kursAwal * 1.1)));
+  await isian("Kurs USD → IDR").blur();
+  cek("kurs diisi → sel ditandai diubah", (await selAsumsi("Kurs USD → IDR").getAttribute("data-diubah")) === "ya");
+  const fragrance = ((await baris("fragranceKecil").innerText()) ?? "").replace(/\s+/g, " ");
+  cek("kurs +10% → baris Fragrance oil kecil menulis Δ +10%", /\+Rp[\d.]+ \+10%/.test(fragrance), JSON.stringify(fragrance));
+  const oem = ((await baris("oemKecil").innerText()) ?? "").replace(/\s+/g, " ");
+  cek("kurs +10% → baris OEM kecil tertulis 'tetap', bukan kosong", /tetap/.test(oem) && /Rp[\d.]+/.test(oem), JSON.stringify(oem));
+  const barisInvestasi = ((await baris("totalInvestasi").innerText()) ?? "").replace(/\s+/g, " ");
+  cek("kurs naik → Total Initial Investment bergeser naik (+)", /\+Rp[\d.]+/.test(barisInvestasi), JSON.stringify(barisInvestasi));
+
+  /* Harga jual turun → margin bergeser dalam POIN, bertanda minus U+2212. */
+  await isian("Harga jual botol kecil").fill("150000");
+  await isian("Harga jual botol kecil").blur();
+  const barisMargin = (await baris("marginKecil").innerText()) ?? "";
+  cek("Δ gross margin ditulis dalam poin, bertanda −", /−[\d,]+ poin/.test(barisMargin), JSON.stringify(barisMargin.replace(/\s+/g, " ")));
+
+  /* Tersimpan ke dokumen, bukan cuma state React. */
+  await hal.reload({ waitUntil: "networkidle" });
+  cek(
+    "skenario & isiannya bertahan setelah reload",
+    (await namaSkenario.count()) === awalKolom + 1 &&
+      (await isian("Harga jual botol kecil").inputValue()) === "150.000",
+  );
+
+  /* "kembali ke default" menghapus override — BUKAN menulis 0. Sel kembali
+     menampilkan angka default dan tidak lagi bertanda diubah. */
+  await baris("kurs").getByRole("button", { name: "kembali ke default" }).click();
+  cek("kembali ke default → sel tidak lagi bertanda diubah", (await selAsumsi("Kurs USD → IDR").getAttribute("data-diubah")) === "tidak");
+  cek(
+    "…dan menampilkan kurs default, bukan 0",
+    Number((await isian("Kurs USD → IDR").inputValue()).replace(/\./g, "")) === kursAwal,
+  );
+  cek(
+    "…dan fragrance kecil kembali 'tetap'",
+    /tetap/.test((await baris("fragranceKecil").innerText()) ?? ""),
+  );
+
+  /* Export: tautan menuju berkas persisnya (bukan directory → 404 di produksi),
+     diklik sungguhan. */
+  const ekspor = hal.locator('[data-uji="export-sensitivitas"]');
+  cek("tautan Export PDF menuju /sensitivitas/cetak/index.html", ((await ekspor.getAttribute("href")) ?? "").endsWith("/sensitivitas/cetak/index.html"));
+  const [resp] = await Promise.all([hal.waitForNavigation({ waitUntil: "networkidle" }), ekspor.click()]);
+  await hal.waitForFunction(() => window.__cetakDipanggil > 0, undefined, { timeout: 5_000 }).catch(() => {});
+  cek("laporan membuka dialog print sendiri setelah dokumen termuat", (await hal.evaluate(() => window.__cetakDipanggil)) === 1);
+  cek("klik Export PDF mendarat di laporannya, bukan 404", (resp?.status() ?? 0) < 400, String(resp?.status()));
+
+  const teks = (await hal.locator(".cetak-satu-halaman").innerText()) ?? "";
+  cek("laporan memuat skenario yang ditambah", teks.includes(`Skenario ${huruf}`));
+  cek("laporan HANYA sensitivitas, tidak memuat isi laporan A4 (Perbandingan Supplier)", !teks.includes("Perbandingan Supplier"));
+
+  /* ⚠️ Riwayat kertas laporan ini, karena dua versi gagal di mesin pemilik
+     padahal probe-nya hijau:
+       1. Kertas custom selebar ponsel lewat `@page ponsel` (bernama).
+          `page.pdf()` menghormatinya; dialog print sungguhan tidak.
+       2. Kertas custom lewat `@page` utama. "Microsoft Print to PDF" dan
+          printer cuma mengenal kertas standar, jadi Chrome memakai A4 lalu
+          mengecilkan laporan sempit itu ke tengah: satu kolom kecil.
+     Sekarang kertasnya A4 (dikenali semua tujuan) dan isinya selebar area
+     cetak A4. Dialog tidak bisa dibuka di headless, jadi yang diperiksa:
+     aturan yang dibaca dialog, dan PDF pada kertas TETAP A4 tanpa
+     `preferCSSPageSize`, persis perilaku tujuan printer. */
+  const aturanUtama = () =>
+    hal.evaluate(() =>
+      [...document.styleSheets]
+        .flatMap((s) => { try { return [...s.cssRules]; } catch { return []; } })
+        .filter((r) => r instanceof CSSPageRule && r.selectorText === "")
+        .map((r) => r.style.getPropertyValue("size")),
+    );
+  const utama = await aturanUtama();
+  cek("dialog print: @page utama = A4, kertas standar yang dikenali semua tujuan", utama.some((s) => /a4/i.test(s)), JSON.stringify(utama));
+
+  await hal.emulateMedia({ media: "print" });
+  const halamanDari = (buf) => (buf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
+  const pdf = await hal.pdf({ preferCSSPageSize: true, printBackground: true });
+  const mb = /\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/.exec(pdf.toString("latin1"));
+  cek(
+    "kertas PDF A4 (595 × 842 pt)",
+    !!mb && Math.abs(Number(mb[1]) - 595.9) < 3 && Math.abs(Number(mb[2]) - 842.9) < 3,
+    mb ? `${Number(mb[1]).toFixed(1)}×${Number(mb[2]).toFixed(1)}pt` : "tidak terbaca",
+  );
+  cek("one pager: seluruh laporan PERSIS 1 halaman", halamanDari(pdf) === 1, `${halamanDari(pdf)} halaman`);
+  const tetapA4 = await hal.pdf({ format: "A4", printBackground: true });
+  cek("…juga pada kertas tetap A4 seperti tujuan printer/Microsoft Print to PDF", halamanDari(tetapA4) === 1, `${halamanDari(tetapA4)} halaman`);
+
+  /* Permintaan pemilik: kertasnya terisi kiri-kanan, bukan satu kolom di
+     tengah. Tabelnya harus selebar area cetak A4 (190 mm ≈ 718 px). */
+  const lebar = await hal.evaluate(() => {
+    const t = document.querySelector(".cetak-isi table")?.getBoundingClientRect().width ?? 0;
+    return Math.round(t);
+  });
+  cek("tabel laporan selebar area cetak A4 (kiri-kanan penuh)", lebar >= 0.95 * ((190 * 96) / 25.4), `${lebar}px`);
+  const luber = await hal.evaluate(() =>
+    [...document.querySelectorAll(".cetak-satu-halaman *")].some((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== "visible"),
+  );
+  cek("tidak ada isi yang terpotong ke samping", !luber);
+  await hal.emulateMedia({ media: null });
+
+  /* Kontrol negatif untuk penghitung halaman: laporan A4 `/cetak` empat
+     halaman harus terbaca lebih dari satu. Penghitung yang selalu menjawab
+     1 akan meloloskan laporan yang tumpah ke halaman kedua. */
+  await hal.goto(BASE + "/cetak/index.html", { waitUntil: "networkidle" });
+  await hal.emulateMedia({ media: "print" });
+  kontrol(
+    "[kontrol negatif] penghitung halaman membaca laporan /cetak sebagai 1 halaman",
+    halamanDari(await hal.pdf({ format: "A4" })) <= 1,
+  );
+  await hal.emulateMedia({ media: null });
+}
 
 /* ══════════════════════════════════════════════════════════════ selesai ══ */
 await peramban.close();

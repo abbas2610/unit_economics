@@ -398,6 +398,65 @@ console.log("\n=== 11. investasiCustom: default kosong, bolak-balik utuh ===");
   sama("label biaya custom bolak-balik utuh", balik.investasiCustom[0].label, "Sewa gudang");
 }
 
+/* ══════════════════════ 12. Kolom skenario Sensitivity Analysis ══ */
+console.log("\n=== 12. sensitivitas: kosong ≠ 0, kunci asing dibuang, id tidak bentrok ===");
+
+{
+  /* Dokumen tim yang ada SEKARANG di Supabase dibuat sebelum field ini ada.
+     Ia harus terbaca dengan sensitivitas kosong — bukan undefined yang
+     meledak di `.map()` tab 6. */
+  const lama = { ...dokumenAwal() } as Record<string, unknown>;
+  delete lama.sensitivitas;
+  const d = bacaDokumen(JSON.parse(JSON.stringify(lama)));
+  cek("payload v1 tanpa field sensitivitas → array kosong", Array.isArray(d.sensitivitas) && d.sensitivitas.length === 0);
+  sama("payload v0 → sensitivitas kosong", bacaDokumen(payloadV0).sensitivitas.length, 0);
+
+  const mentah = {
+    ...dokumenAwal(),
+    sensitivitas: [
+      {
+        id: "sen200",
+        nama: "Botol naik",
+        /* "375000" sebagai string: JSON yang pernah lewat tangan/spreadsheet.
+           BUKAN "375.000" — payload tidak pernah menyimpan format tampilan,
+           dan `numOpsional` membaca string persis seperti `num()` di tempat
+           lain migrasi ini. */
+        /* `botolKecil` adalah kunci dari versi pertama tab ini (lima belas
+           variabel) — skenario yang sempat tersimpan dengannya tidak boleh
+           menyelundupkan asumsi yang sudah tidak ada. */
+        nilai: { kurs: 20000, hargaBesar: "375000", hargaKecil: null, botolKecil: 13000, kunciAsing: 5 },
+      },
+    ],
+  };
+  const balik = bacaDokumen(JSON.parse(JSON.stringify(mentah)));
+  const n = balik.sensitivitas[0]?.nilai ?? {};
+  sama("nama skenario utuh", balik.sensitivitas[0]?.nama, "Botol naik");
+  sama("kurs skenario utuh", n.kurs, 20000);
+  sama("override string angka terbaca", n.hargaBesar, 375000);
+  cek("override null TIDAK jadi 0 — ia 'ikut default'", !("hargaKecil" in n));
+  cek("kunci yang tidak dikenal dibuang", !("kunciAsing" in n));
+  cek("kunci versi pertama (harga botol) dibuang — asumsi sekarang cuma kurs & harga jual", !("botolKecil" in n));
+
+  /* Id skenario sensitivitas ikut dihitung `idBerikutnya` — kalau tidak,
+     kolom baru bisa ber-id sama dengan kolom lama, dan menyunting satu
+     menulis ke yang lain. */
+  cek("idBerikutnya melewati id sensitivitas tertinggi", idBerikutnya(balik) > 200);
+
+  const ganda = bacaDokumen({
+    ...dokumenAwal(),
+    sensitivitas: [
+      { id: "sen300", nama: "A", nilai: {} },
+      { id: "sen300", nama: "B", nilai: {} },
+    ],
+  });
+  cek("id sensitivitas ganda diperbaiki", ganda.sensitivitas[0].id !== ganda.sensitivitas[1].id);
+}
+
+kontrol(
+  "[kontrol negatif] `num(v, 0)` akan meleburkan null jadi 0 — pemeriksa 'tidak jadi 0' menangkapnya",
+  !("hargaKecil" in { hargaKecil: 0 }),
+);
+
 /* ══════════════════════════════════════════════════════════════ selesai ══ */
 console.log(`\n${lulus} lulus, ${gagal} gagal — ${lulus + gagal} pemeriksaan`);
 if (gagal > 0) process.exit(1);

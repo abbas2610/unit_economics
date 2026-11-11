@@ -20,7 +20,7 @@ Live di **<https://abbas.co.id/perfume>** — bundle-nya tinggal di
 | 3 | `/supplier-besar` | Supplier botol besar (100 atau 50 ML) |
 | 4 | `/investasi` | Initial investment: produk + marketing, pajak, catatan MOQ |
 | 5 | `/unit-economics` | COGS per botol, gross margin, skenario perbandingan |
-| 6 | `/sensitivitas` | Simulasi "bagaimana jika", dampak per variabel, target omzet |
+| 6 | `/sensitivitas` | Tabel skenario berkolom (A default, B, C, …): ubah kurs & harga jual, lihat rincian biaya per botol, investasi, margin, break-even; Export PDF selebar ponsel di `/sensitivitas/cetak` |
 
 Tiap langkah punya **rute sendiri**, jadi tombol back browser bekerja dan tiap tab
 bisa dibuka langsung. Itu perubahan nyata dari builder HTML sebelumnya, di mana

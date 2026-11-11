@@ -95,6 +95,12 @@ const PINTU = {
     fragrance: "dokumen menyusun varian & campuran",
     supplier: "dokumen menyusun daftar supplier",
     "unit-economics": "dokumen menyusun daftar skenario perbandingan",
+    sensitivitas: "dokumen menyusun kolom skenario sensitivitas, dan migrasi membuang kunci asumsi yang tidak dikenal",
+  },
+  sensitivitas: {
+    "unit-economics": "COGS, margin, dan break-even skenario dihitung fungsi yang SAMA dengan tab 5 — bukan rumus kedua",
+    investasi: "total initial investment skenario dihitung fungsi yang SAMA dengan tab 4",
+    dokumen: "skenario adalah dokumen lain: override diterapkan ke salinan, bukan ke state global",
   },
 };
 
@@ -402,7 +408,7 @@ console.log("\n=== 7. src/app dikelompokkan per route group ===");
      menunjuk rute mati terlihat persis seperti item nav yang jadi. */
   const shell = fs.readFileSync("src/components/app-shell.tsx", "utf8");
   const href = [...shell.matchAll(/href:\s*"([^"]*)"/g)].map((m) => m[1]);
-  cek("lima tab terbaca dari app-shell", href.length === 5, href.join(" "));
+  cek("enam tab terbaca dari app-shell", href.length === 6, href.join(" "));
 
   const hilang = href.filter((h) => {
     const p = h === "/" ? "src/app/(builder)/page.tsx" : `src/app/(builder)${h}/page.tsx`;
