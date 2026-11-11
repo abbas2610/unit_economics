@@ -93,7 +93,15 @@ export function SensitivitasLayar() {
       }),
     );
 
-  const lebarTabel = 140 + 150 + kolom.length * 200;
+  /* Lebar kolom DIKUNCI, dan tabel tidak ditarik selebar kartu. Versi
+     sebelumnya `w-full`: dengan satu skenario, kolom B melebar ~600px dan
+     angkanya terlempar jauh dari labelnya. Kolom label 140px di ponsel
+     (kolom beku memakan layar), 260px di layar lebar. */
+  const LEBAR_DEFAULT = 160;
+  /* 260, bukan 220: di 220 nama skenario terpotong dan "kembali ke default"
+     + Δ rupiah & persen terlipat dua baris di bawah kotak isian. */
+  const LEBAR_SKENARIO = 260;
+  const lebarTabel = `calc(var(--lebar-label) + ${LEBAR_DEFAULT + kolom.length * LEBAR_SKENARIO}px)`;
 
   return (
     <>
@@ -128,22 +136,23 @@ export function SensitivitasLayar() {
         </div>
 
         <BungkusTabel>
-          <table className="w-full border-collapse" style={{ minWidth: lebarTabel }}>
+          <table
+            className="table-fixed border-collapse [--lebar-label:140px] sm:[--lebar-label:260px]"
+            style={{ width: lebarTabel }}
+          >
             <thead>
               <tr>
-                {/* Di ponsel kolom label membeku memakan lebar layar; 140px
-                    menyisakan cukup ruang untuk satu kolom angka terlihat. */}
-                <th className={cx("th w-[140px] bg-surface-muted text-left sm:w-[240px]", KOLOM_BEKU)}>
+                <th className={cx("th bg-surface-muted text-left", KOLOM_BEKU)} style={{ width: "var(--lebar-label)" }}>
                   Asumsi &amp; hasil
                 </th>
-                <th className="th text-right" style={{ width: 150 }}>
+                <th className="th text-right" style={{ width: LEBAR_DEFAULT }}>
                   <span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-surface text-badge font-bold text-fg-muted">
                     A
                   </span>
                   Default
                 </th>
                 {kolom.map(({ sk }, i) => (
-                  <th key={sk.id} className="th py-2 text-left normal-case tracking-normal" style={{ width: 200 }}>
+                  <th key={sk.id} className="th py-2 text-left normal-case tracking-normal" style={{ width: LEBAR_SKENARIO }}>
                     <div className="flex items-center gap-1.5">
                       <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-badge font-bold text-white">
                         {hurufKolom(i)}
@@ -174,12 +183,17 @@ export function SensitivitasLayar() {
                   const nDasar = dasar.variabel[v.kunci];
                   return (
                     <tr key={v.kunci} data-baris={v.kunci} className="border-b border-border">
-                      <td className={cx("td bg-surface px-2 py-2 sm:px-3", KOLOM_BEKU)}>
+                      {/* Rata ATAS di semua sel: angka default dan label
+                          sejajar dengan kotak isian, bukan ditengahkan
+                          terhadap kotak + baris keterangan di bawahnya. */}
+                      <td className={cx("td bg-surface px-2 py-2 align-top sm:px-3", KOLOM_BEKU)}>
                         <span className="block font-semibold text-fg">{v.label}</span>
                         <span className="block text-meta text-fg-subtle">{v.satuan}</span>
                       </td>
-                      <td className="td py-2 text-right">
-                        <span className="tabular font-semibold text-fg">{rupiah(nDasar)}</span>
+                      <td className="td py-2 text-right align-top">
+                        <span className="flex h-control items-center justify-end tabular font-semibold text-fg">
+                          {rupiah(nDasar)}
+                        </span>
                       </td>
                       {kolom.map(({ sk, hasil }, i) => {
                         const diisi = sk.nilai[v.kunci] ?? null;
@@ -231,21 +245,24 @@ export function SensitivitasLayar() {
                         >
                           <td
                             className={cx(
-                              "td bg-surface px-2 py-2 sm:px-3",
+                              "td bg-surface px-2 py-2 align-top sm:px-3",
                               KOLOM_BEKU,
                               m.utama ? "font-semibold text-fg" : "text-fg-muted",
                             )}
                           >
                             {m.label}
                           </td>
-                          <td className="td py-2 text-right">
+                          {/* Rata atas: angka default sejajar dengan baris
+                              PERTAMA sel skenario (nilai), bukan di tengah
+                              antara nilai dan Δ di bawahnya. */}
+                          <td className="td py-2 text-right align-top">
                             <NilaiMetrik metrik={m} nilai={nDasar} className={m.utama ? "font-semibold" : undefined} />
                           </td>
                           {kolom.map(({ sk, hasil }) => {
                             const nBaru = hasil.ringkasan[m.kunci];
                             const sel = selisih(nDasar, nBaru, m.jenis);
                             return (
-                              <td key={sk.id} className="td py-2 text-right">
+                              <td key={sk.id} className="td py-2 text-right align-top">
                                 <NilaiMetrik metrik={m} nilai={nBaru} className={m.utama ? "font-semibold" : undefined} />
                                 <div>
                                   {bergeser(sel, m.jenis) ? (

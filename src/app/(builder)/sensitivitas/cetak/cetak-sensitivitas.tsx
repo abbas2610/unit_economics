@@ -314,8 +314,11 @@ function Sel({ nilai, delta }: { nilai: ReactNode; delta: ReactNode }) {
 }
 
 /**
- * Δ ringkas untuk satu sel: persen relatif (atau poin untuk margin). Selisih
- * rupiahnya tidak ditulis: nilai barunya sudah ada tepat di atasnya.
+ * Δ untuk satu sel: selisih rupiah (atau pcs) DAN persen relatif; margin
+ * cukup dalam poin. Versi sebelumnya cuma persen, dengan alasan nilai baru
+ * sudah tertulis di atasnya; pemilik memintanya tertulis ("harus ada info
+ * berapa rupiah change-nya"), karena menghitung selisih dua angka sembilan
+ * digit di kepala bukan kerja pembaca laporan.
  */
 function Delta({ jenis, biaya, a, b }: { jenis: JenisMetrik; biaya: boolean; a: number | null; b: number | null }) {
   const sel = selisih(a, b, jenis);
@@ -326,6 +329,12 @@ function Delta({ jenis, biaya, a, b }: { jenis: JenisMetrik; biaya: boolean; a: 
   }
   if (!bergeser(sel, jenis)) return <span className="text-badge text-fg-subtle">tetap</span>;
   if (jenis === "margin") return <Nilai nilai={sel.selisih} jenis="poin" className="text-badge" />;
-  if (sel.persen != null) return <Nilai nilai={sel.persen} jenis="persen" biaya={biaya} className="text-badge" />;
-  return <Nilai nilai={sel.selisih} jenis={jenis === "pcs" ? "pcs" : "rupiah"} biaya={biaya} className="text-badge" />;
+  return (
+    <span className="inline-flex flex-wrap items-baseline justify-end gap-x-1.5">
+      <Nilai nilai={sel.selisih} jenis={jenis === "pcs" ? "pcs" : "rupiah"} biaya={biaya} className="text-badge" />
+      {sel.persen != null ? (
+        <Nilai nilai={sel.persen} jenis="persen" biaya={biaya} className="text-badge font-normal" />
+      ) : null}
+    </span>
+  );
 }
