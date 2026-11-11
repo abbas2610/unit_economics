@@ -592,7 +592,25 @@ await hal.addInitScript(() => {
 console.log("\n=== 11. Sensitivity Analysis: skenario, Δ, dan PDF satu halaman A4 ===");
 
 {
+  /* ⚠️ TUNGGU dokumen selesai dimuat setiap kali halaman dibuka. Di CI bundle
+     membawa kredensial dan Supabase diputus, jadi aplikasi butuh beberapa
+     detik untuk menyerah lalu memakai cadangan lokal. Selama itu layar masih
+     dokumen awal. Bagian ini sempat memeriksa langsung sesudah `networkidle`:
+     lolos di mesin tanpa kredensial (mode lokal, instan), gagal tiga baris di
+     CI ("skenario hilang setelah reload", "dialog print tidak terbuka",
+     "laporan tanpa skenario"), padahal aplikasinya benar. Polling, bukan
+     sleep, sama seperti bagian 1. */
+  const tungguMuat = () =>
+    hal
+      .waitForFunction(
+        () => !/Memuat/i.test(document.querySelector("header [role=status]")?.textContent ?? ""),
+        undefined,
+        { timeout: 30_000 },
+      )
+      .catch(() => {});
+
   await hal.goto(BASE + "/sensitivitas/index.html", { waitUntil: "networkidle" });
+  await tungguMuat();
   const namaSkenario = hal.locator('input[aria-label^="Nama skenario"]');
   const awalKolom = await namaSkenario.count();
 
@@ -631,6 +649,7 @@ console.log("\n=== 11. Sensitivity Analysis: skenario, Δ, dan PDF satu halaman 
 
   /* Tersimpan ke dokumen, bukan cuma state React. */
   await hal.reload({ waitUntil: "networkidle" });
+  await tungguMuat();
   cek(
     "skenario & isiannya bertahan setelah reload",
     (await namaSkenario.count()) === awalKolom + 1 &&
@@ -655,7 +674,9 @@ console.log("\n=== 11. Sensitivity Analysis: skenario, Δ, dan PDF satu halaman 
   const ekspor = hal.locator('[data-uji="export-sensitivitas"]');
   cek("tautan Export PDF menuju /sensitivitas/cetak/index.html", ((await ekspor.getAttribute("href")) ?? "").endsWith("/sensitivitas/cetak/index.html"));
   const [resp] = await Promise.all([hal.waitForNavigation({ waitUntil: "networkidle" }), ekspor.click()]);
-  await hal.waitForFunction(() => window.__cetakDipanggil > 0, undefined, { timeout: 5_000 }).catch(() => {});
+  await tungguMuat();
+  /* Laporan baru memanggil print SETELAH dokumen tim termuat (+400 ms). */
+  await hal.waitForFunction(() => window.__cetakDipanggil > 0, undefined, { timeout: 10_000 }).catch(() => {});
   cek("laporan membuka dialog print sendiri setelah dokumen termuat", (await hal.evaluate(() => window.__cetakDipanggil)) === 1);
   cek("klik Export PDF mendarat di laporannya, bukan 404", (resp?.status() ?? 0) < 400, String(resp?.status()));
 
